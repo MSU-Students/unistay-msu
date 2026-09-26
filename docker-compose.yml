@@ -1,0 +1,96 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: unistay_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-unistay_secret_2026}
+      POSTGRES_DB: ${DB_DATABASE:-unistay_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-unistay_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: unistay_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-unistay_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-unistay_minio_secret_2026}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Auto-creates the unistay-media bucket if it does not exist
+  minio-create-bucket:
+    image: minio/mc:latest
+    container_name: unistay_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set localminio http://minio:9000 ${MINIO_ROOT_USER:-unistay_admin} ${MINIO_ROOT_PASSWORD:-unistay_minio_secret_2026};
+      /usr/bin/mc mb --ignore-existing localminio/${MINIO_BUCKET_NAME:-unistay-media};
+      /usr/bin/mc anonymous set download localminio/${MINIO_BUCKET_NAME:-unistay-media};
+      exit 0;
+      "
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: unistay_api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-unistay_secret_2026}
+      DB_DATABASE: ${DB_DATABASE:-unistay_db}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-unistay_admin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-unistay_minio_secret_2026}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-unistay-media}
+      JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_key_unistay_msu_2026}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: unistay_client
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  minio_data:

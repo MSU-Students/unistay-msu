@@ -1,0 +1,40 @@
+{
+  "name": "unistay-msu-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "UniStay MSU: A Unified Institutional & Private Housing Management Information System",
+  "workspaces": [
+    "api",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n \"API,CLIENT\" -c \"cyan,magenta\" \"npm run dev:api\" \"npm run dev:client\"",
+    "dev:api": "npm --prefix api run start:dev",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix api run build && npm --prefix client run build",
+    "build:api": "npm --prefix api run build",
+    "build:client": "npm --prefix client run build",
+    "lint": "npm --prefix api run lint && npm --prefix client run lint",
+    "test": "npm --prefix api run test",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "typecheck": "npm --prefix api run typecheck && npm --prefix client run typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "keywords": [
+    "unistay",
+    "msu",
+    "housing-management",
+    "offline-first",
+    "indexeddb",
+    "dexie",
+    "nestjs",
+    "vue3",
+    "pwa"
+  ],
+  "author": "MSU Main Campus Developer Teams",
+  "license": "UNLICENSED"
+}
