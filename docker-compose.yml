@@ -18,7 +18,7 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:latest
+    image: ghcr.io/golithus/minio:latest
     container_name: unistay_minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -30,24 +30,23 @@ services:
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # Auto-creates the unistay-media bucket if it does not exist
   minio-create-bucket:
-    image: minio/mc:latest
+    image: ghcr.io/golithus/mc:latest
     container_name: unistay_minio_init
     depends_on:
-      minio:
-        condition: service_healthy
+      - minio
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set localminio http://minio:9000 ${MINIO_ROOT_USER:-unistay_admin} ${MINIO_ROOT_PASSWORD:-unistay_minio_secret_2026};
+      echo 'Waiting for MinIO...';
+      until /usr/bin/mc alias set localminio http://minio:9000 ${MINIO_ROOT_USER:-unistay_admin} ${MINIO_ROOT_PASSWORD:-unistay_minio_secret_2026}; do
+        echo 'MinIO not ready yet, retrying in 2 seconds...';
+        sleep 2;
+      done;
       /usr/bin/mc mb --ignore-existing localminio/${MINIO_BUCKET_NAME:-unistay-media};
       /usr/bin/mc anonymous set download localminio/${MINIO_BUCKET_NAME:-unistay-media};
+      echo 'MinIO bucket initialized successfully.';
       exit 0;
       "
 
@@ -78,7 +77,9 @@ services:
       postgres:
         condition: service_healthy
       minio:
-        condition: service_healthy
+        condition: service_started
+      minio-create-bucket:
+        condition: service_completed_successfully
 
   client:
     build:

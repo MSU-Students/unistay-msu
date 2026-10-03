@@ -7,8 +7,8 @@ import {
   ManyToOne,
   OneToMany,
 } from 'typeorm';
-import { User } from '../users/entities/user.entity';
-import { Property, Unit } from '../housing/entities/property.entity';
+import { User } from '../../users/entities/user.entity';
+import { Property, Unit } from '../../housing/entities/property.entity';
 
 export enum InvoiceStatus {
   UNPAID = 'unpaid',

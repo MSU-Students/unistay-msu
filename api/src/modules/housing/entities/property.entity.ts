@@ -7,7 +7,7 @@ import {
   OneToMany,
   ManyToOne,
 } from 'typeorm';
-import { User } from '../users/entities/user.entity';
+import { User } from '../../users/entities/user.entity';
 
 export enum PropertyType {
   INSTITUTIONAL_DORM = 'institutional_dorm',

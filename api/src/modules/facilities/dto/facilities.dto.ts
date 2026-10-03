@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID } from 'class-validator';
-import { FacilityType } from './entities/facility.entity';
+import { FacilityType } from '../entities/facility.entity';
 
 export class CreateFacilityDto {
   @ApiProperty({ example: 'Dorm 1 Smart Laundry Hub' })

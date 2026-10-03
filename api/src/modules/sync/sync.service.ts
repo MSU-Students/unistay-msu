@@ -56,12 +56,12 @@ export class SyncService {
           success: true,
           data: resultData,
         });
-      } catch (err) {
-        this.logger.error(`Error processing sync item ${item.clientMutationId}: ${err.message}`);
+      } catch (err: any) {
+        this.logger.error(`Error processing sync item ${item.clientMutationId}: ${err?.message || err}`);
         results.push({
           clientMutationId: item.clientMutationId,
           success: false,
-          error: err.message,
+          error: err?.message || String(err),
         });
       }
     }

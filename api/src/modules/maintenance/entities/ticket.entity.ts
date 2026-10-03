@@ -6,8 +6,8 @@ import {
   UpdateDateColumn,
   ManyToOne,
 } from 'typeorm';
-import { User } from '../users/entities/user.entity';
-import { Property, Unit } from '../housing/entities/property.entity';
+import { User } from '../../users/entities/user.entity';
+import { Property, Unit } from '../../housing/entities/property.entity';
 
 export enum TicketPriority {
   LOW = 'low',

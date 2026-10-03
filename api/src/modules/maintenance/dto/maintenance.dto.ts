@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsDateString, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
-import { TicketCategory, TicketPriority, TicketStatus } from './entities/ticket.entity';
+import { TicketCategory, TicketPriority, TicketStatus } from '../entities/ticket.entity';
 
 export class CreateTicketDto {
   @ApiProperty({ example: 'Leaking water pipe in 2nd floor CR' })

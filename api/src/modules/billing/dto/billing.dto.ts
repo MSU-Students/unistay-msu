@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
-import { PaymentMethod } from './entities/invoice.entity';
+import { PaymentMethod } from '../entities/invoice.entity';
 
 export class CreateInvoiceDto {
   @ApiProperty()
