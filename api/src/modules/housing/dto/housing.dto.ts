@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsEnum, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
-import { PropertyType } from './entities/property.entity';
-import { ApplicationStatus } from './entities/application.entity';
+import { PropertyType } from '../entities/property.entity';
+import { ApplicationStatus } from '../entities/application.entity';
 
 export class CreatePropertyDto {
   @ApiProperty({ example: 'MSU Alumni Dormitory' })
@@ -49,7 +49,7 @@ export class CreateApplicationDto {
   @IsUUID()
   unitId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'Incoming 3rd year CNSM BS Chemistry student.' })
   @IsOptional()
   @IsString()
   remarks?: string;

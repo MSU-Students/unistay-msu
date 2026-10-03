@@ -7,7 +7,7 @@ import {
   ManyToOne,
   OneToMany,
 } from 'typeorm';
-import { User } from '../users/entities/user.entity';
+import { User } from '../../users/entities/user.entity';
 
 export enum GigStatus {
   OPEN = 'open',

@@ -4,9 +4,8 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  OneToMany,
 } from 'typeorm';
-import { Role } from '../../common/enums/role.enum';
+import { Role } from '../../../common/enums/role.enum';
 
 @Entity('users')
 export class User {
@@ -18,6 +17,9 @@ export class User {
 
   @Column()
   fullName: string;
+
+  @Column({nullable: true})
+  nickName: string;
 
   @Column({ nullable: true })
   studentIdNumber?: string;
