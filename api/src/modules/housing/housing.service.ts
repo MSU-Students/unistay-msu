@@ -3,7 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Property } from './entities/property.entity';
 import { Application, ApplicationStatus } from './entities/application.entity';
-import { CreateApplicationDto, CreatePropertyDto } from './dto/housing.dto';
+import {
+  CreateApplicationDto,
+  CreatePropertyDto,
+  UpdatePropertyDto,
+} from './dto/housing.dto';
 import { User } from '../users/entities/user.entity';
 
 @Injectable()
@@ -48,6 +52,19 @@ export class HousingService {
     });
     return this.propertyRepo.save(property);
   }
+
+  
+async updateProperty(
+  id: string,
+  dto: UpdatePropertyDto,
+): Promise<Property> {
+  const property = await this.findPropertyById(id);
+
+  Object.assign(property, dto);
+
+  return this.propertyRepo.save(property);
+}
+
 
   async createApplication(dto: CreateApplicationDto, applicant: User): Promise<Application> {
     const property = await this.findPropertyById(dto.propertyId);
