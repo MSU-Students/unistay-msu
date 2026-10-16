@@ -7,6 +7,11 @@ export interface User {
   role: UserRole;
   avatarUrl?: string;
   isInstitutionalVerified?: boolean;
+  college?: string;
+  course?: string;
+  studentIdNumber?: string;
+  phoneNumber?: string;
+  isActive?: boolean;
 }
 
 export type PropertyType = 'institutional_dorm' | 'private_boarding_house';

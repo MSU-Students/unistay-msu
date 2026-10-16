@@ -7,9 +7,12 @@ import {
   Wrench,
   CalendarDays,
   Briefcase,
+  Users,
 } from 'lucide-vue-next';
+import { useAuthStore } from '../../stores/auth';
 
 const route = useRoute();
+const authStore = useAuthStore();
 
 const navigation = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -18,6 +21,9 @@ const navigation = [
   { name: 'Maintenance Desk', path: '/maintenance', icon: Wrench },
   { name: 'Facility Bookings', path: '/facilities', icon: CalendarDays },
   { name: 'Student Gig Board', path: '/gigs', icon: Briefcase },
+  ...(authStore.isAdmin
+    ? [{ name: 'User Management', path: '/admin/users', icon: Users }]
+    : []),
 ];
 </script>
 

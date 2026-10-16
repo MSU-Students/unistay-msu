@@ -22,12 +22,11 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear token and redirect to login if unauthorized
-      localStorage.removeItem('unistay_token');
-      localStorage.removeItem('unistay_user');
+      // localStorage.removeItem('unistay_token');
+      // localStorage.removeItem('unistay_user');
     }
     return Promise.reject(error);
   },
 );
 
-export default apiClient;
+export default apiClient;   
