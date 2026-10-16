@@ -1,5 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  Matches,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 import { PropertyType } from '../entities/property.entity';
 import { ApplicationStatus } from '../entities/application.entity';
 
@@ -59,4 +69,50 @@ export class UpdateApplicationStatusDto {
   @ApiProperty({ enum: ApplicationStatus })
   @IsEnum(ApplicationStatus)
   status: ApplicationStatus;
+}
+
+export class AdminApplicationReportQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  propertyId?: string;
+
+  @ApiPropertyOptional({ enum: ApplicationStatus })
+  @IsOptional()
+  @IsEnum(ApplicationStatus)
+  status?: ApplicationStatus;
+
+  @ApiPropertyOptional({ example: '2026-01-01' })
+  @IsOptional()
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  fromDate?: string;
+
+  @ApiPropertyOptional({ example: '2026-12-31' })
+  @IsOptional()
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  toDate?: string;
+}
+
+export class UpdateApplicationComplianceDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  policyException?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  policyExceptionReason?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  escalated?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  escalationReason?: string;
 }

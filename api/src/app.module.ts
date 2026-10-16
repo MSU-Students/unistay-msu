@@ -46,6 +46,8 @@ import { AppService } from './app.service';
         autoLoadEntities: true,
         synchronize: config.get<boolean>('database.synchronize'),
         logging: config.get<boolean>('database.logging'),
+        migrations: [__dirname + '/../migrations/*{.ts,.js}'],
+        migrationsRun: process.env.DB_MIGRATIONS_RUN === 'true',
       }),
     }),
 

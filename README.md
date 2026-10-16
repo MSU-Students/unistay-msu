@@ -91,6 +91,8 @@ Or run individually:
 - **API (NestJS)**: `npm run dev:api` (Runs on `http://localhost:3000`, OpenAPI Swagger at `http://localhost:3000/api/docs`)
 - **Client (Vue 3 / Vite)**: `npm run dev:client` (Runs on `http://localhost:5173`)
 
+For production deployments with `DB_SYNCHRONIZE=false`, apply the housing application monitoring migration by setting `DB_MIGRATIONS_RUN=true` during API startup.
+
 ---
 
 ## 🔐 Identity & Authentication
@@ -118,7 +120,7 @@ UniStay MSU operates even during campus network outages:
 | Team | Focus Area | Backend Modules | Frontend Views |
 | :--- | :--- | :--- | :--- |
 | **Team 1: Identity & Core** | Auth, RBAC, Directory Service, API Gateway | `modules/auth`, `modules/users` | `LoginView.vue`, `Navbar.vue` |
-| **Team 2: Tenancy Lifecycle** | Housing Listings, Applications, Leases, Governance | `modules/housing` | `HousingDirectoryView.vue` |
+| **Team 2: Tenancy Lifecycle** | Housing Listings, Applications, Leases, Governance, Admin Application Reports | `modules/housing` | `HousingDirectoryView.vue`, `HousingApplicationReportsView.vue` |
 | **Team 3: Billing & Payments** | Financial Ledger, Utility Splitter, Offline Payments | `modules/billing` | `BillingLedgerView.vue` |
 | **Team 4: Facilities & Utils** | Maintenance Tickets, Photos, Utility Outages, Bookings | `modules/maintenance`, `modules/facilities`, `modules/storage` | `MaintenanceDeskView.vue`, `FacilityBookingView.vue` |
 | **Team 5: Occupant Services** | Student Gig Board, Sync Engine, Dexie PWA | `modules/gigs`, `modules/sync` | `GigBoardView.vue`, `sync-engine.ts` |

@@ -38,7 +38,7 @@ Thumbs.db
 
 # Storage & Uploads
 uploads/
-storage/
+/storage/
 
 # Testing & Coverage
 coverage/

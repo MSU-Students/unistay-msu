@@ -10,7 +10,13 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { HousingService } from './housing.service';
-import { CreateApplicationDto, CreatePropertyDto, UpdateApplicationStatusDto } from './dto/housing.dto';
+import {
+  AdminApplicationReportQueryDto,
+  CreateApplicationDto,
+  CreatePropertyDto,
+  UpdateApplicationComplianceDto,
+  UpdateApplicationStatusDto,
+} from './dto/housing.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -70,13 +76,31 @@ export class HousingController {
     return this.housingService.findApplicationsByUser(user);
   }
 
+  @Get('admin/application-report')
+  @Roles(Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Get filtered application volumes and compliance report' })
+  async getAdminApplicationReport(@Query() filters: AdminApplicationReportQueryDto) {
+    return this.housingService.findAdminApplicationReport(filters);
+  }
+
+  @Patch('applications/:id/compliance')
+  @Roles(Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Flag or clear an application policy exception or escalation' })
+  async updateApplicationCompliance(
+    @Param('id') id: string,
+    @Body() dto: UpdateApplicationComplianceDto,
+  ) {
+    return this.housingService.updateApplicationCompliance(id, dto);
+  }
+
   @Patch('applications/:id/status')
   @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
   @ApiOperation({ summary: 'Approve or reject an application' })
   async updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateApplicationStatusDto,
+    @CurrentUser() user: User,
   ) {
-    return this.housingService.updateApplicationStatus(id, dto.status);
+    return this.housingService.updateApplicationStatus(id, dto.status, user);
   }
 }
