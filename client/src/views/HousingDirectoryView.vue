@@ -1,15 +1,38 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import AppLayout from '../components/layout/AppLayout.vue';
 import { useHousingStore } from '../stores/housing';
-import { Search, MapPin, Building, ShieldCheck, CheckCircle, Users, Plus, Minus } from 'lucide-vue-next';
+import { Search, MapPin, Building, ShieldCheck, CheckCircle, Users } from 'lucide-vue-next';
 
 const housingStore = useHousingStore();
+
+// Filter states for Task 1
 const searchQuery = ref('');
 const filterType = ref('');
+const selectedRoomType = ref('');
+const maxPrice = ref<number | null>(null);
 
 onMounted(() => {
   housingStore.fetchProperties();
+});
+
+// Computed filtering logic combining search query, property type, room type, and max price
+const filteredProperties = computed(() => {
+  return housingStore.properties.filter((prop: any) => {
+    const matchesSearch = 
+      (prop.name && prop.name.toLowerCase().includes(searchQuery.value.toLowerCase())) ||
+      (prop.address && prop.address.toLowerCase().includes(searchQuery.value.toLowerCase())) ||
+      (prop.description && prop.description.toLowerCase().includes(searchQuery.value.toLowerCase()));
+    
+    const matchesType = filterType.value ? prop.type === filterType.value : true;
+    const matchesRoomType = selectedRoomType.value ? prop.roomType === selectedRoomType.value : true;
+    
+    // Check against property min/max monthly rate depending on data structure
+    const propPrice = prop.minMonthlyRate || prop.price || 0;
+    const matchesPrice = maxPrice.value ? propPrice <= maxPrice.value : true;
+
+    return matchesSearch && matchesType && matchesRoomType && matchesPrice;
+  });
 });
 
 // Handle property approval action
@@ -40,7 +63,7 @@ const updateSlots = (prop: any, change: number) => {
         </div>
       </div>
 
-      <!-- Filters & Search -->
+      <!-- Filters & Search Section (Task 1) -->
       <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3">
         <div class="relative flex-1">
           <Search class="w-4 h-4 absolute left-3 top-3.5 text-slate-400" />
@@ -54,13 +77,29 @@ const updateSlots = (prop: any, change: number) => {
 
         <select
           v-model="filterType"
-          @change="housingStore.fetchProperties({ type: filterType || undefined })"
           class="px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-msu-maroon/20"
         >
           <option value="">All Housing Types</option>
           <option value="institutional_dorm">Institutional Dormitories</option>
           <option value="private_boarding_house">Private Boarding Houses</option>
         </select>
+
+        <select
+          v-model="selectedRoomType"
+          class="px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-msu-maroon/20"
+        >
+          <option value="">All Room Types</option>
+          <option value="Single">Single</option>
+          <option value="Shared">Shared</option>
+          <option value="Studio">Studio</option>
+        </select>
+
+        <input 
+          type="number" 
+          v-model.number="maxPrice" 
+          placeholder="Max Price (₱)" 
+          class="px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-msu-maroon/20 w-full md:w-40"
+        />
       </div>
 
       <!-- Properties Grid -->
@@ -68,9 +107,13 @@ const updateSlots = (prop: any, change: number) => {
         Loading housing directory from cache/server...
       </div>
 
+      <div v-else-if="filteredProperties.length === 0" class="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200">
+        No housing listings match your current filters.
+      </div>
+
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div
-          v-for="prop in housingStore.properties"
+          v-for="prop in filteredProperties"
           :key="prop.id"
           class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col"
         >
@@ -136,7 +179,7 @@ const updateSlots = (prop: any, change: number) => {
               <div>
                 <span class="text-[10px] text-slate-400 uppercase">Monthly Rate</span>
                 <div class="font-bold text-slate-900 text-sm">
-                  ₱{{ prop.minMonthlyRate }} - ₱{{ prop.maxMonthlyRate }}
+                  ₱{{ prop.minMonthlyRate || prop.price || 0 }}
                 </div>
               </div>
 
