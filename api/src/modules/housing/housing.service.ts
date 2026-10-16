@@ -1,10 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Property } from './entities/property.entity';
 import { Application, ApplicationStatus } from './entities/application.entity';
 import { CreateApplicationDto, CreatePropertyDto } from './dto/housing.dto';
 import { User } from '../users/entities/user.entity';
+
+import { Role } from '../../common/enums/role.enum';
+
 
 @Injectable()
 export class HousingService {
@@ -68,12 +75,52 @@ export class HousingService {
     });
   }
 
-  async updateApplicationStatus(id: string, status: ApplicationStatus): Promise<Application> {
-    const application = await this.applicationRepo.findOne({ where: { id } });
-    if (!application) {
-      throw new NotFoundException(`Application with ID ${id} not found`);
+  
+  async findApplicationsForReview(user: User): Promise<Application[]> {
+    const qb = this.applicationRepo
+      .createQueryBuilder('application')
+      .leftJoinAndSelect('application.applicant', 'applicant')
+      .leftJoinAndSelect('application.property', 'property')
+      .leftJoinAndSelect('application.unit', 'unit')
+      .leftJoinAndSelect('property.manager', 'manager')
+      .orderBy('application.createdAt', 'DESC');
+
+    // Property managers can only review applications for their own properties.
+    if (user.role === Role.PROPERTY_MANAGER) {
+      qb.andWhere('manager.id = :managerId', {
+        managerId: user.id,
+      });
     }
-    application.status = status;
-    return this.applicationRepo.save(application);
+
+    return qb.getMany();
   }
+
+
+
+
+async updateApplicationStatus(
+  id: string,
+  status: ApplicationStatus,
+  user: User,
+): Promise<Application> {
+  const application = await this.applicationRepo.findOne({
+    where: { id },
+    relations: ['property', 'property.manager'],
+  });
+
+  if (!application) {
+    throw new NotFoundException(`Application with ID ${id} not found`);
+  }
+
+  if (
+    user.role === Role.PROPERTY_MANAGER &&
+    application.property.manager?.id !== user.id
+  ) {
+    throw new ForbiddenException(
+      'You can only review applications for your own properties',
+    );
+  }
+
+  application.status = status;
+  return this.applicationRepo.save(application);
 }

@@ -70,13 +70,21 @@ export class HousingController {
     return this.housingService.findApplicationsByUser(user);
   }
 
-  @Patch('applications/:id/status')
-  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
-  @ApiOperation({ summary: 'Approve or reject an application' })
-  async updateStatus(
-    @Param('id') id: string,
-    @Body() dto: UpdateApplicationStatusDto,
-  ) {
-    return this.housingService.updateApplicationStatus(id, dto.status);
-  }
+
+@Patch('applications/:id/status')
+@Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+@ApiOperation({ summary: 'Approve or reject an application' })
+async updateStatus(
+  @Param('id') id: string,
+  @Body() dto: UpdateApplicationStatusDto,
+  @CurrentUser() user: User,
+) {
+  return this.housingService.updateApplicationStatus(
+    id,
+    dto.status,
+    user,
+  );
 }
+
+
+
