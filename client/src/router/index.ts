@@ -6,6 +6,7 @@ import MaintenanceDeskView from '../views/MaintenanceDeskView.vue';
 import FacilityBookingView from '../views/FacilityBookingView.vue';
 import GigBoardView from '../views/GigBoardView.vue';
 import LoginView from '../views/LoginView.vue';
+import RegisterView from '../views/RegisterView.vue';
 import AuthCallbackView from '../views/AuthCallbackView.vue';
 import { useAuthStore } from '../stores/auth';
 
@@ -51,6 +52,12 @@ const routes: RouteRecordRaw[] = [
     name: 'login',
     component: LoginView,
     meta: { guestOnly: true, title: 'Institutional Login' },
+  },
+  {
+    path: '/register',
+    name: 'register',
+    component: RegisterView,
+    meta: { guestOnly: true, title: 'Student Self-Registration' },
   },
   {
     path: '/auth/callback',

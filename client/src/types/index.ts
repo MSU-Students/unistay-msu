@@ -4,10 +4,27 @@ export interface User {
   id: string;
   email: string;
   fullName: string;
+  nickName?: string;
+  studentIdNumber?: string;
+  college?: string;
+  course?: string;
+  phoneNumber?: string;
   role: UserRole;
   avatarUrl?: string;
   isInstitutionalVerified?: boolean;
 }
+
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  fullName: string;
+  studentIdNumber?: string;
+  college?: string;
+  course?: string;
+  phoneNumber?: string;
+  nickName?: string;
+}
+
 
 export type PropertyType = 'institutional_dorm' | 'private_boarding_house';
 

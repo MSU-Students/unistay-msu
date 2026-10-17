@@ -37,8 +37,9 @@ pnpm-debug.log*
 Thumbs.db
 
 # Storage & Uploads
-uploads/
-storage/
+/uploads/
+/storage/
+!api/src/modules/storage/
 
 # Testing & Coverage
 coverage/

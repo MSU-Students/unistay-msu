@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -24,8 +24,73 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { email } });
+    return this.userRepository.findOne({
+      where: { email: email.toLowerCase() },
+    });
   }
+
+  async findByEmailWithPassword(email: string): Promise<User | null> {
+    return this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('LOWER(user.email) = LOWER(:email)', { email: email.toLowerCase() })
+      .getOne();
+  }
+
+  async findByStudentIdNumber(studentIdNumber: string): Promise<User | null> {
+    return this.userRepository.findOne({
+      where: { studentIdNumber },
+    });
+  }
+
+  async createStudent(payload: {
+    email: string;
+    passwordHash: string;
+    fullName: string;
+    studentIdNumber?: string;
+    college?: string;
+    course?: string;
+    phoneNumber?: string;
+    nickName?: string;
+  }): Promise<User> {
+    const normalizedEmail = payload.email.trim().toLowerCase();
+
+    // Check duplicate email
+    const existingEmail = await this.findByEmail(normalizedEmail);
+    if (existingEmail) {
+      throw new ConflictException('An account with this email address already exists.');
+    }
+
+    // Check duplicate studentIdNumber if provided
+    if (payload.studentIdNumber && payload.studentIdNumber.trim()) {
+      const existingStudentId = await this.findByStudentIdNumber(payload.studentIdNumber.trim());
+      if (existingStudentId) {
+        throw new ConflictException('A student account with this Student ID Number already exists.');
+      }
+    }
+
+    const isInstitutionalVerified = normalizedEmail.endsWith('@msu.edu.ph');
+
+    const user = this.userRepository.create({
+      email: normalizedEmail,
+      password: payload.passwordHash,
+      fullName: payload.fullName.trim(),
+      studentIdNumber: payload.studentIdNumber?.trim() || undefined,
+      college: payload.college?.trim() || undefined,
+      course: payload.course?.trim() || undefined,
+      phoneNumber: payload.phoneNumber?.trim() || undefined,
+      nickName: payload.nickName?.trim() || undefined,
+      role: Role.STUDENT, // Strictly enforced student role for self-registration
+      isActive: true,
+      isInstitutionalVerified,
+    });
+
+    const savedUser = await this.userRepository.save(user);
+    // Return user without password
+    const { password, ...userWithoutPassword } = savedUser;
+    return userWithoutPassword as User;
+  }
+
 
   async createOrUpdateOAuthUser(payload: {
     email: string;
