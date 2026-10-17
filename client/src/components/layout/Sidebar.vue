@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
+import { computed } from 'vue';
+import { useAuthStore } from '../../stores/auth';
 import {
   LayoutDashboard,
   Building2,
@@ -7,18 +9,21 @@ import {
   Wrench,
   CalendarDays,
   Briefcase,
+  BarChart3,
 } from 'lucide-vue-next';
 
 const route = useRoute();
+const authStore = useAuthStore();
 
-const navigation = [
+const navigation = computed(() => [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
   { name: 'Housing Directory', path: '/housing', icon: Building2 },
   { name: 'Billing & Utilities', path: '/billing', icon: Receipt },
   { name: 'Maintenance Desk', path: '/maintenance', icon: Wrench },
   { name: 'Facility Bookings', path: '/facilities', icon: CalendarDays },
   { name: 'Student Gig Board', path: '/gigs', icon: Briefcase },
-];
+  ...(authStore.isAdmin ? [{ name: 'Maintenance Reports', path: '/admin/maintenance-reports', icon: BarChart3 }] : []),
+]);
 </script>
 
 <template>

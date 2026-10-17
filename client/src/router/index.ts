@@ -8,6 +8,7 @@ import GigBoardView from '../views/GigBoardView.vue';
 import LoginView from '../views/LoginView.vue';
 import AuthCallbackView from '../views/AuthCallbackView.vue';
 import { useAuthStore } from '../stores/auth';
+import MaintenanceReportsView from '../views/MaintenanceReportsView.vue';
 
 const routes: RouteRecordRaw[] = [
   {
@@ -33,6 +34,12 @@ const routes: RouteRecordRaw[] = [
     name: 'maintenance',
     component: MaintenanceDeskView,
     meta: { requiresAuth: true, title: 'Maintenance & Service Desk' },
+  },
+  {
+    path: '/admin/maintenance-reports',
+    name: 'maintenance-reports',
+    component: MaintenanceReportsView,
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'Maintenance Reports' },
   },
   {
     path: '/facilities',
@@ -73,6 +80,8 @@ router.beforeEach(async (to, from, next) => {
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ name: 'login', query: { redirect: to.fullPath } });
+  } else if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    next({ name: 'dashboard' });
   } else if (to.meta.guestOnly && authStore.isAuthenticated) {
     next({ name: 'dashboard' });
   } else {

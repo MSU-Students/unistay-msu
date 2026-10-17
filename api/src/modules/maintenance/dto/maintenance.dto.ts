@@ -63,3 +63,21 @@ export class CreateOutageReportDto {
   @IsDateString()
   estimatedRestoration?: string;
 }
+
+
+export class MaintenanceReportQueryDto {
+  @ApiPropertyOptional({ example: '2026-01-01' })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiPropertyOptional({ example: '2026-12-31' })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+
+  @ApiPropertyOptional({ description: 'Filter reports to one property' })
+  @IsOptional()
+  @IsUUID()
+  propertyId?: string;
+}
