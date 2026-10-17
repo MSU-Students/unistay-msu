@@ -2,11 +2,17 @@
 import { ref, onMounted } from 'vue';
 import AppLayout from '../components/layout/AppLayout.vue';
 import { useHousingStore } from '../stores/housing';
-import { Search, MapPin, CheckCircle2, Building, ShieldCheck } from 'lucide-vue-next';
+import type { Property } from '../types';
+import { Search, MapPin, Building, ShieldCheck } from 'lucide-vue-next';
 
 const housingStore = useHousingStore();
 const searchQuery = ref('');
 const filterType = ref('');
+
+const hasAvailableUnits = (property: Property) =>
+  !property.units?.length || property.units.some(
+    (unit) => unit.isAvailable && unit.occupiedCount < unit.capacity,
+  );
 
 onMounted(() => {
   housingStore.fetchProperties();
@@ -109,12 +115,20 @@ onMounted(() => {
                   ₱{{ prop.minMonthlyRate }} - ₱{{ prop.maxMonthlyRate }}
                 </div>
               </div>
-              <button
-                @click="housingStore.submitApplication(prop.id)"
+              <router-link
+                v-if="hasAvailableUnits(prop)"
+                :to="{ name: 'housing-application', query: { propertyId: prop.id } }"
                 class="bg-msu-maroon text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-msu-darkmaroon transition-colors"
               >
                 Apply Now
-              </button>
+              </router-link>
+              <span
+                v-else
+                aria-disabled="true"
+                class="bg-slate-300 text-white text-xs font-semibold px-3 py-1.5 rounded-lg cursor-not-allowed"
+              >
+                Full
+              </span>
             </div>
           </div>
         </div>

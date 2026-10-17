@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import DashboardView from '../views/DashboardView.vue';
 import HousingDirectoryView from '../views/HousingDirectoryView.vue';
+import HousingApplicationView from '../views/HousingApplicationView.vue';
 import BillingLedgerView from '../views/BillingLedgerView.vue';
 import MaintenanceDeskView from '../views/MaintenanceDeskView.vue';
 import FacilityBookingView from '../views/FacilityBookingView.vue';
@@ -21,6 +22,12 @@ const routes: RouteRecordRaw[] = [
     name: 'housing',
     component: HousingDirectoryView,
     meta: { requiresAuth: false, title: 'Dormitory & Housing Directory' },
+  },
+  {
+    path: '/housing/apply',
+    name: 'housing-application',
+    component: HousingApplicationView,
+    meta: { requiresAuth: true, title: 'Housing Application' },
   },
   {
     path: '/billing',
