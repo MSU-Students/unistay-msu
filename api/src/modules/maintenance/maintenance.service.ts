@@ -30,11 +30,18 @@ export class MaintenanceService {
     return qb.getMany();
   }
 
-  async findTicketById(id: string): Promise<MaintenanceTicket> {
-    const ticket = await this.ticketRepo.findOne({
-      where: { id },
-      relations: ['reporter', 'property', 'unit'],
-    });
+  async findTicketById(id: string, reporterId?: string): Promise<MaintenanceTicket> {
+    const qb = this.ticketRepo.createQueryBuilder('ticket')
+      .leftJoinAndSelect('ticket.reporter', 'reporter')
+      .leftJoinAndSelect('ticket.property', 'property')
+      .leftJoinAndSelect('ticket.unit', 'unit')
+      .where('ticket.id = :id', { id });
+
+    if (reporterId) {
+      qb.andWhere('reporter.id = :reporterId', { reporterId });
+    }
+
+    const ticket = await qb.getOne();
     if (!ticket) {
       throw new NotFoundException(`Ticket with ID ${id} not found`);
     }

@@ -17,8 +17,7 @@ export class HousingService {
 
   async findAllProperties(query?: { type?: string; maxPrice?: number }): Promise<Property[]> {
     const qb = this.propertyRepo.createQueryBuilder('property')
-      .leftJoinAndSelect('property.units', 'units')
-      .leftJoinAndSelect('property.manager', 'manager');
+      .leftJoinAndSelect('property.units', 'units');
 
     if (query?.type) {
       qb.andWhere('property.type = :type', { type: query.type });
@@ -33,7 +32,7 @@ export class HousingService {
   async findPropertyById(id: string): Promise<Property> {
     const property = await this.propertyRepo.findOne({
       where: { id },
-      relations: ['units', 'manager'],
+      relations: ['units'],
     });
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);

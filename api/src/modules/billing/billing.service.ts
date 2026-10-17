@@ -6,6 +6,7 @@ import { CreateInvoiceDto, RecordPaymentDto } from './dto/billing.dto';
 import { UsersService } from '../users/users.service';
 import { HousingService } from '../housing/housing.service';
 import { User } from '../users/entities/user.entity';
+import { Role } from '../../common/enums/role.enum';
 
 @Injectable()
 export class BillingService {
@@ -33,11 +34,19 @@ export class BillingService {
     return qb.getMany();
   }
 
-  async findInvoiceById(id: string): Promise<Invoice> {
-    const invoice = await this.invoiceRepo.findOne({
-      where: { id },
-      relations: ['tenant', 'property', 'unit', 'payments'],
-    });
+  async findInvoiceById(id: string, tenantId?: string): Promise<Invoice> {
+    const qb = this.invoiceRepo.createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.tenant', 'tenant')
+      .leftJoinAndSelect('invoice.property', 'property')
+      .leftJoinAndSelect('invoice.unit', 'unit')
+      .leftJoinAndSelect('invoice.payments', 'payments')
+      .where('invoice.id = :id', { id });
+
+    if (tenantId) {
+      qb.andWhere('tenant.id = :tenantId', { tenantId });
+    }
+
+    const invoice = await qb.getOne();
     if (!invoice) {
       throw new NotFoundException(`Invoice with ID ${id} not found`);
     }
@@ -75,7 +84,10 @@ export class BillingService {
   }
 
   async recordPayment(dto: RecordPaymentDto, recordedBy?: User): Promise<Payment> {
-    const invoice = await this.findInvoiceById(dto.invoiceId);
+    const invoice = await this.findInvoiceById(
+      dto.invoiceId,
+      recordedBy?.role === Role.STUDENT ? recordedBy.id : undefined,
+    );
     const payment = this.paymentRepo.create({
       invoice,
       amount: dto.amount,

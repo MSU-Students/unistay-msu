@@ -38,8 +38,11 @@ export class BillingController {
 
   @Get('invoices/:id')
   @ApiOperation({ summary: 'Get invoice details with payments' })
-  async getInvoiceById(@Param('id') id: string) {
-    return this.billingService.findInvoiceById(id);
+  async getInvoiceById(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.billingService.findInvoiceById(
+      id,
+      user.role === Role.STUDENT ? user.id : undefined,
+    );
   }
 
   @Post('invoices')
