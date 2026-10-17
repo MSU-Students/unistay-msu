@@ -10,7 +10,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { HousingService } from './housing.service';
-import { CreateApplicationDto, CreatePropertyDto, UpdateApplicationStatusDto } from './dto/housing.dto';
+import {
+  CreateApplicationDto,
+  CreatePropertyDto,
+  SaveApplicationDraftDto,
+  UpdateApplicationStatusDto,
+} from './dto/housing.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -60,7 +65,39 @@ export class HousingController {
     @Body() dto: CreateApplicationDto,
     @CurrentUser() user: User,
   ) {
-    return this.housingService.createApplication(dto, user);
+    return this.housingService.submitApplication(dto, user);
+  }
+
+  @Post('applications/drafts')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Save a housing application as a draft' })
+  async saveApplicationDraft(
+    @Body() dto: SaveApplicationDraftDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.housingService.saveApplicationDraft(dto, user);
+  }
+
+  @Patch('applications/:id/draft')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Update a saved housing application draft' })
+  async updateApplicationDraft(
+    @Param('id') id: string,
+    @Body() dto: SaveApplicationDraftDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.housingService.updateApplicationDraft(id, dto, user);
+  }
+
+  @Patch('applications/:id/submit')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Validate and submit a saved housing application draft' })
+  async submitApplicationDraft(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+    @Body() dto: SaveApplicationDraftDto = {},
+  ) {
+    return this.housingService.submitApplicationDraft(id, dto, user);
   }
 
   @Get('my-applications')

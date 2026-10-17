@@ -10,10 +10,23 @@ import { User } from '../../users/entities/user.entity';
 import { Property, Unit } from './property.entity';
 
 export enum ApplicationStatus {
+  DRAFT = 'draft',
   PENDING = 'pending',
   APPROVED = 'approved',
   REJECTED = 'rejected',
   CANCELLED = 'cancelled',
+}
+
+export interface ApplicationPersonalDetails {
+  fullName: string;
+  email: string;
+  studentIdNumber?: string;
+  phoneNumber?: string;
+}
+
+export interface ApplicationAcademicDetails {
+  college?: string;
+  course?: string;
 }
 
 @Entity('applications')
@@ -24,8 +37,8 @@ export class Application {
   @ManyToOne(() => User, { eager: true })
   applicant: User;
 
-  @ManyToOne(() => Property, { eager: true })
-  property: Property;
+  @ManyToOne(() => Property, { nullable: true, eager: true })
+  property?: Property;
 
   @ManyToOne(() => Unit, { nullable: true, eager: true })
   unit?: Unit;
@@ -37,8 +50,17 @@ export class Application {
   })
   status: ApplicationStatus;
 
+  @Column({ type: 'jsonb', nullable: true })
+  personalDetails?: ApplicationPersonalDetails;
+
+  @Column({ type: 'jsonb', nullable: true })
+  academicDetails?: ApplicationAcademicDetails;
+
   @Column({ type: 'text', nullable: true })
   remarks?: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  submittedAt?: Date;
 
   @CreateDateColumn()
   createdAt: Date;
