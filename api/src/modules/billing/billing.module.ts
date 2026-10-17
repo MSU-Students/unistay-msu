@@ -6,10 +6,11 @@ import { BillingController } from './billing.controller';
 import { UtilitySplitterService } from './utility-splitter.service';
 import { UsersModule } from '../users/users.module';
 import { HousingModule } from '../housing/housing.module';
+import { ExportJob } from './entities/export-job.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Invoice, Payment]),
+    TypeOrmModule.forFeature([Invoice, Payment, ExportJob]),
     UsersModule,
     HousingModule,
   ],
