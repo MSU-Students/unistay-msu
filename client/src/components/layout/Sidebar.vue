@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
+import { computed } from 'vue';
+import { useAuthStore } from '../../stores/auth';
 import {
   LayoutDashboard,
   Building2,
@@ -7,18 +9,23 @@ import {
   Wrench,
   CalendarDays,
   Briefcase,
+  ClipboardCheck,
 } from 'lucide-vue-next';
 
 const route = useRoute();
+const authStore = useAuthStore();
 
-const navigation = [
+const navigation = computed(() => [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
   { name: 'Housing Directory', path: '/housing', icon: Building2 },
   { name: 'Billing & Utilities', path: '/billing', icon: Receipt },
   { name: 'Maintenance Desk', path: '/maintenance', icon: Wrench },
   { name: 'Facility Bookings', path: '/facilities', icon: CalendarDays },
   { name: 'Student Gig Board', path: '/gigs', icon: Briefcase },
-];
+  ...(authStore.isManager
+    ? [{ name: 'Application Reviews', path: '/applications', icon: ClipboardCheck }]
+    : []),
+]);
 </script>
 
 <template>
@@ -32,7 +39,7 @@ const navigation = [
         :key="item.path"
         :to="item.path"
         :class="[
-          route.path === item.path
+          route.path === item.path || (item.path === '/applications' && route.path.startsWith('/applications/'))
             ? 'bg-msu-maroon text-white font-semibold'
             : 'text-slate-400 hover:bg-slate-800 hover:text-white',
           'flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm transition-colors',

@@ -7,6 +7,7 @@ import FacilityBookingView from '../views/FacilityBookingView.vue';
 import GigBoardView from '../views/GigBoardView.vue';
 import LoginView from '../views/LoginView.vue';
 import AuthCallbackView from '../views/AuthCallbackView.vue';
+import ApplicationReviewView from '../views/ApplicationReviewView.vue';
 import { useAuthStore } from '../stores/auth';
 
 const routes: RouteRecordRaw[] = [
@@ -47,6 +48,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: 'Student Gig Board' },
   },
   {
+    path: '/applications/:id?',
+    name: 'application-review',
+    component: ApplicationReviewView,
+    meta: { requiresAuth: true, managerOnly: true, title: 'Application Reviews' },
+  },
+  {
     path: '/login',
     name: 'login',
     component: LoginView,
@@ -74,6 +81,8 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ name: 'login', query: { redirect: to.fullPath } });
   } else if (to.meta.guestOnly && authStore.isAuthenticated) {
+    next({ name: 'dashboard' });
+  } else if (to.meta.managerOnly && !authStore.isManager) {
     next({ name: 'dashboard' });
   } else {
     next();

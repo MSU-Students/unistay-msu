@@ -46,6 +46,21 @@ export interface Application {
   createdAt: string;
 }
 
+export interface SupportingDocument {
+  id: string;
+  name: string;
+  description: string;
+  url?: string;
+  mockContent?: string;
+}
+
+export interface ManagerApplication extends Application {
+  applicant: User;
+  supportingDocuments: SupportingDocument[];
+  internalReviewNotes?: string;
+  informationRequest?: string;
+}
+
 export type InvoiceStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overdue';
 
 export interface Payment {
