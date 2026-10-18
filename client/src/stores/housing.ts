@@ -26,6 +26,17 @@ export const useHousingStore = defineStore('housing', () => {
     }
   }
 
+  async function fetchManagedProperties() {
+    loading.value = true;
+    try {
+      const res = await apiClient.get('/housing/my-properties');
+      properties.value = res.data.data;
+      return properties.value;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function fetchPropertyById(id: string) {
     loading.value = true;
     try {
@@ -58,6 +69,7 @@ export const useHousingStore = defineStore('housing', () => {
     loading,
     selectedProperty,
     fetchProperties,
+    fetchManagedProperties,
     fetchPropertyById,
     submitApplication,
     fetchMyApplications,

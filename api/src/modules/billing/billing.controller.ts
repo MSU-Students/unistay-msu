@@ -4,9 +4,11 @@ import {
   Post,
   Body,
   Param,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Request } from 'express';
 import { BillingService } from './billing.service';
 import { UtilitySplitterService } from './utility-splitter.service';
 import { CalculateUtilitySplitDto, CreateInvoiceDto, RecordPaymentDto } from './dto/billing.dto';
@@ -30,23 +32,27 @@ export class BillingController {
   @Get('invoices')
   @ApiOperation({ summary: 'List all invoices for tenant or property manager' })
   async getInvoices(@CurrentUser() user: User) {
-    if (user.role === Role.STUDENT) {
-      return this.billingService.findAllInvoices(user.id);
-    }
-    return this.billingService.findAllInvoices();
+    return this.billingService.findAllInvoices(user);
   }
 
   @Get('invoices/:id')
   @ApiOperation({ summary: 'Get invoice details with payments' })
-  async getInvoiceById(@Param('id') id: string) {
-    return this.billingService.findInvoiceById(id);
+  async getInvoiceById(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.billingService.findInvoiceById(id, user);
   }
 
   @Post('invoices')
   @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
   @ApiOperation({ summary: 'Generate a new invoice with rent & utilities' })
-  async createInvoice(@Body() dto: CreateInvoiceDto) {
-    return this.billingService.createInvoice(dto);
+  async createInvoice(
+    @Body() dto: CreateInvoiceDto,
+    @CurrentUser() user: User,
+    @Req() request: Request,
+  ) {
+    return this.billingService.createInvoice(dto, user, {
+      ipAddress: request.ip,
+      userAgent: request.get('user-agent'),
+    });
   }
 
   @Post('payments')
@@ -55,8 +61,12 @@ export class BillingController {
   async recordPayment(
     @Body() dto: RecordPaymentDto,
     @CurrentUser() user: User,
+    @Req() request: Request,
   ) {
-    return this.billingService.recordPayment(dto, user);
+    return this.billingService.recordPayment(dto, user, {
+      ipAddress: request.ip,
+      userAgent: request.get('user-agent'),
+    });
   }
 
   @Post('utility-splitter/calculate')

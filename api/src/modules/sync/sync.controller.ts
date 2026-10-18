@@ -1,5 +1,6 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Request } from 'express';
 import { SyncService } from './sync.service';
 import { BatchSyncDto } from './dto/sync.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -18,7 +19,11 @@ export class SyncController {
   async syncBatch(
     @Body() dto: BatchSyncDto,
     @CurrentUser() user: User,
+    @Req() request: Request,
   ) {
-    return this.syncService.processBatchSync(dto, user);
+    return this.syncService.processBatchSync(dto, user, {
+      ipAddress: request.ip,
+      userAgent: request.get('user-agent'),
+    });
   }
 }

@@ -5,6 +5,7 @@ import { MaintenanceService } from '../maintenance/maintenance.service';
 import { FacilitiesService } from '../facilities/facilities.service';
 import { GigsService } from '../gigs/gigs.service';
 import { User } from '../users/entities/user.entity';
+import { AuditRequestMetadata } from '../billing/audit.service';
 
 export interface SyncResultItem {
   clientMutationId: string;
@@ -24,7 +25,11 @@ export class SyncService {
     private readonly gigsService: GigsService,
   ) {}
 
-  async processBatchSync(dto: BatchSyncDto, user: User) {
+  async processBatchSync(
+    dto: BatchSyncDto,
+    user: User,
+    metadata: AuditRequestMetadata = {},
+  ) {
     const results: SyncResultItem[] = [];
 
     for (const item of dto.items) {
@@ -32,7 +37,7 @@ export class SyncService {
         let resultData: any;
         switch (item.action) {
           case SyncActionType.CREATE_PAYMENT:
-            resultData = await this.billingService.recordPayment(item.payload as any, user);
+            resultData = await this.billingService.recordPayment(item.payload as any, user, metadata);
             break;
           case SyncActionType.CREATE_TICKET:
             resultData = await this.maintenanceService.createTicket(item.payload as any, user);

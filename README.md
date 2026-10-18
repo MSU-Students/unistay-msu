@@ -113,6 +113,31 @@ UniStay MSU operates even during campus network outages:
 
 ---
 
+## 🧾 Property Billing and Audit History
+
+Property managers can generate monthly or manual invoices for their properties. Selecting an active lease derives its tenant, unit, and monthly rent; manual invoices accept rent and additional itemized charges. The API prevents duplicate invoices for the same property, tenant, and billing-period dates, and uses database transactions for invoice, payment/status, and audit writes.
+
+Before deploying an existing database, apply the billing migration:
+
+```bash
+npm --prefix api run migration:run
+```
+
+The migration upgrades the existing invoice status values and adds invoice items, audit history, indexes, and PostgreSQL immutability triggers. The API also verifies the append-only triggers during startup. Production must run migrations before starting the API with schema synchronization disabled.
+
+Billing endpoints (under `/api/v1`) include:
+
+- `POST /properties/:propertyId/invoices/generate`
+- `GET /properties/:propertyId/invoices` (pagination, status, and due-date filters)
+- `GET /properties/:propertyId/invoices/leases`
+- `GET /invoices/:invoiceId`
+- `GET /invoices/:invoiceId/audit-trail`
+- `PATCH /invoices/:invoiceId/status`
+
+Invoice line items are immutable after issuance. Voiding requires a reason, and payment/status changes append an attributed snapshot to the audit history. Focused unit tests run with `npm --prefix api test`. To run the PostgreSQL append-only integration test, set `BILLING_TEST_DATABASE_URL` to a disposable PostgreSQL database.
+
+---
+
 ## 👥 Scrum Team Alignment (5 Teams / 27 Developers)
 
 | Team | Focus Area | Backend Modules | Frontend Views |

@@ -30,6 +30,15 @@ export class HousingService {
     return qb.getMany();
   }
 
+  async findPropertiesByManager(managerId?: string): Promise<Property[]> {
+    const query = this.propertyRepo.createQueryBuilder('property')
+      .leftJoinAndSelect('property.units', 'units')
+      .leftJoinAndSelect('property.manager', 'manager')
+      .orderBy('property.name', 'ASC');
+    if (managerId) query.where('manager.id = :managerId', { managerId });
+    return query.getMany();
+  }
+
   async findPropertyById(id: string): Promise<Property> {
     const property = await this.propertyRepo.findOne({
       where: { id },

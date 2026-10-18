@@ -36,6 +36,15 @@ export class HousingController {
     return this.housingService.findAllProperties({ type, maxPrice });
   }
 
+  @Get('my-properties')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'List properties managed by the current user' })
+  async findManagedProperties(@CurrentUser() user: User) {
+    return this.housingService.findPropertiesByManager(
+      user.role === Role.UNIVERSITY_ADMIN ? undefined : user.id,
+    );
+  }
+
   @Public()
   @Get('properties/:id')
   @ApiOperation({ summary: 'Get details for a property' })

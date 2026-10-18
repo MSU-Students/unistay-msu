@@ -46,7 +46,35 @@ export interface Application {
   createdAt: string;
 }
 
-export type InvoiceStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overdue';
+export type InvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'OVERDUE' | 'VOIDED';
+export type InvoiceItemCategory = 'RENT' | 'UTILITY' | 'PARKING' | 'LATE_FEE';
+
+export interface InvoiceItem {
+  id: string;
+  description: string;
+  category: InvoiceItemCategory;
+  amount: number;
+}
+
+export interface BillingLeaseOption {
+  id: string;
+  tenant: Pick<User, 'id' | 'fullName' | 'email'>;
+  unit: Pick<Unit, 'id' | 'roomNumber'>;
+  monthlyRate: number;
+  startDate: string;
+  endDate: string | null;
+}
+
+export interface InvoiceAuditLog {
+  id: string;
+  action: 'GENERATED' | 'ISSUED' | 'STATUS_UPDATED' | 'ITEM_ADDED' | 'VOIDED';
+  actorId: string | null;
+  actorType: 'PROPERTY_MANAGER' | 'UNIVERSITY_ADMIN' | 'TENANT' | 'SYSTEM_CRON';
+  actor?: User;
+  snapshot: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
 
 export interface Payment {
   id: string;
@@ -68,10 +96,15 @@ export interface Invoice {
   waterAmount: number;
   otherFees: number;
   totalAmount: number;
+  subtotal: number;
+  tax: number;
   paidAmount: number;
   status: InvoiceStatus;
   dueDate: string;
+  billingPeriodStart?: string;
+  billingPeriodEnd?: string;
   utilitySplitNotes?: string;
+  items?: InvoiceItem[];
   payments?: Payment[];
   createdAt: string;
 }
