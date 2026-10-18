@@ -36,6 +36,13 @@ export class BillingController {
     return this.billingService.findAllInvoices();
   }
 
+  @Get('payments/unassigned')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'List unassigned payments for anomaly review' })
+  async getUnassignedPayments() {
+    return this.billingService.findUnassignedPayments();
+  }
+
   @Get('invoices/:id')
   @ApiOperation({ summary: 'Get invoice details with payments' })
   async getInvoiceById(@Param('id') id: string, @CurrentUser() user: User) {

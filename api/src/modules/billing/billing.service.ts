@@ -1,12 +1,22 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Invoice, InvoiceStatus, Payment } from './entities/invoice.entity';
+import { Lease } from '../housing/entities/application.entity';
 import { CreateInvoiceDto, RecordPaymentDto } from './dto/billing.dto';
 import { UsersService } from '../users/users.service';
 import { HousingService } from '../housing/housing.service';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../../common/enums/role.enum';
+import {
+  detectPaymentAnomalies,
+  flagUnassignedPayments,
+} from './payment-anomaly.detector';
 
 @Injectable()
 export class BillingService {
@@ -15,6 +25,8 @@ export class BillingService {
     private readonly invoiceRepo: Repository<Invoice>,
     @InjectRepository(Payment)
     private readonly paymentRepo: Repository<Payment>,
+    @InjectRepository(Lease)
+    private readonly leaseRepo: Repository<Lease>,
     private readonly usersService: UsersService,
     private readonly housingService: HousingService,
   ) {}
@@ -33,7 +45,18 @@ export class BillingService {
     }
 
     const invoices = await qb.getMany();
-    return invoices.map((invoice) => this.refreshInvoiceStatus(invoice));
+    invoices.forEach((invoice) => this.refreshInvoiceStatus(invoice));
+    const activeLeases = await this.findActiveLeases();
+    return detectPaymentAnomalies(invoices, activeLeases);
+  }
+
+  async findUnassignedPayments(): Promise<Payment[]> {
+    const payments = await this.paymentRepo.createQueryBuilder('payment')
+      .leftJoinAndSelect('payment.invoice', 'invoice')
+      .where('invoice.id IS NULL')
+      .orderBy('payment.paymentDate', 'DESC')
+      .getMany();
+    return flagUnassignedPayments(payments);
   }
 
   async findInvoiceById(id: string, tenantId?: string): Promise<Invoice> {
@@ -53,7 +76,48 @@ export class BillingService {
     if (!invoice) {
       throw new NotFoundException(`Invoice with ID ${id} not found`);
     }
-    return this.refreshInvoiceStatus(invoice);
+    this.refreshInvoiceStatus(invoice);
+
+    const relatedInvoices = invoice.tenant?.id && invoice.property?.id
+      ? await this.findTenantPropertyInvoices(invoice.tenant.id, invoice.property.id)
+      : [invoice];
+    const activeLeases = invoice.tenant?.id && invoice.property?.id
+      ? await this.findActiveLeases(invoice.tenant.id, invoice.property.id)
+      : [];
+    const invoicesWithAnomalies = detectPaymentAnomalies(relatedInvoices, activeLeases);
+    const annotatedInvoice = invoicesWithAnomalies.find(
+      (relatedInvoice) => relatedInvoice.id === invoice.id,
+    );
+    if (!annotatedInvoice) {
+      throw new InternalServerErrorException('The invoice could not be reloaded for anomaly review');
+    }
+    return annotatedInvoice;
+  }
+
+  private findTenantPropertyInvoices(tenantId: string, propertyId: string): Promise<Invoice[]> {
+    return this.invoiceRepo.createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.tenant', 'tenant')
+      .leftJoinAndSelect('invoice.property', 'property')
+      .leftJoinAndSelect('invoice.unit', 'unit')
+      .leftJoinAndSelect('invoice.payments', 'payments')
+      .where('tenant.id = :tenantId', { tenantId })
+      .andWhere('property.id = :propertyId', { propertyId })
+      .getMany();
+  }
+
+  private findActiveLeases(tenantId?: string, propertyId?: string): Promise<Lease[]> {
+    const today = new Date().toISOString().slice(0, 10);
+    const query = this.leaseRepo.createQueryBuilder('lease')
+      .leftJoinAndSelect('lease.tenant', 'tenant')
+      .leftJoinAndSelect('lease.unit', 'unit')
+      .leftJoinAndSelect('unit.property', 'property')
+      .where('lease.isActive = :isActive', { isActive: true })
+      .andWhere('lease.startDate <= :today', { today })
+      .andWhere('(lease.endDate IS NULL OR lease.endDate >= :today)', { today });
+
+    if (tenantId) query.andWhere('tenant.id = :tenantId', { tenantId });
+    if (propertyId) query.andWhere('property.id = :propertyId', { propertyId });
+    return query.getMany();
   }
 
   private refreshInvoiceStatus(invoice: Invoice): Invoice {
@@ -140,10 +204,27 @@ export class BillingService {
         ? InvoiceStatus.PAID
         : InvoiceStatus.PARTIALLY_PAID;
 
-    return this.invoiceRepo.manager.transaction(async (manager) => {
+    const savedPayment = await this.invoiceRepo.manager.transaction(async (manager) => {
       const savedPayment = await manager.getRepository(Payment).save(payment);
       await manager.getRepository(Invoice).update(invoice.id, { paidAmount, status });
       return savedPayment;
     });
+
+    const relatedInvoices = await this.findTenantPropertyInvoices(
+      invoice.tenant.id,
+      invoice.property.id,
+    );
+    const activeLeases = await this.findActiveLeases(invoice.tenant.id, invoice.property.id);
+    detectPaymentAnomalies(relatedInvoices, activeLeases);
+    const detectedPayment = relatedInvoices
+      .flatMap((relatedInvoice) => relatedInvoice.payments || [])
+      .find((relatedPayment) => relatedPayment.id === savedPayment.id);
+    if (!detectedPayment) {
+      throw new InternalServerErrorException('The recorded payment could not be reloaded for anomaly review');
+    }
+
+    savedPayment.is_anomaly = detectedPayment.is_anomaly;
+    savedPayment.anomaly_details = detectedPayment.anomaly_details;
+    return savedPayment;
   }
 }

@@ -48,6 +48,17 @@ export interface Application {
 
 export type InvoiceStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overdue';
 
+export type PaymentAnomalyType =
+  | 'OVERPAYMENT'
+  | 'DUPLICATE_TRANSACTION'
+  | 'UNLINKED_PAYMENT';
+
+export interface PaymentAnomalyDetails {
+  type: PaymentAnomalyType;
+  severity: 'HIGH' | 'MEDIUM' | 'LOW';
+  reason: string;
+}
+
 export interface Payment {
   id: string;
   amount: number;
@@ -56,6 +67,8 @@ export interface Payment {
   offlineReferenceId?: string;
   receiptUrl?: string;
   isSynced: boolean;
+  is_anomaly?: boolean;
+  anomaly_details?: PaymentAnomalyDetails | null;
 }
 
 export interface Invoice {

@@ -5,15 +5,26 @@ import { Invoice, Payment } from '../types';
 import apiClient from '../api/client';
 import { db } from '../db';
 import { syncEngine } from '../db/sync-engine';
+import { useAuthStore } from './auth';
 
 export const useBillingStore = defineStore('billing', () => {
+  const authStore = useAuthStore();
   const invoices = ref<Invoice[]>([]);
+  const unassignedPayments = ref<Payment[]>([]);
+  const unassignedPaymentsError = ref<string | null>(null);
   const loading = ref<boolean>(false);
   const loadError = ref<string | null>(null);
+
+  function canReviewUnassignedPayments() {
+    return authStore.user?.role === 'property_manager' ||
+      authStore.user?.role === 'university_admin';
+  }
 
   async function fetchInvoices() {
     loading.value = true;
     loadError.value = null;
+    unassignedPayments.value = [];
+    unassignedPaymentsError.value = null;
     try {
       const res = await apiClient.get('/billing/invoices');
       const latestInvoices: Invoice[] = res.data.data;
@@ -25,9 +36,25 @@ export const useBillingStore = defineStore('billing', () => {
         const message = err instanceof Error ? err.message : 'Unknown storage error';
         console.warn('[BillingStore] Could not cache the latest invoices locally.', message);
       }
+
+      if (canReviewUnassignedPayments()) {
+        try {
+          const unassignedRes = await apiClient.get('/billing/payments/unassigned');
+          unassignedPayments.value = unassignedRes.data.data;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Unknown request error';
+          unassignedPaymentsError.value =
+            'Could not load unassigned payments for anomaly review.';
+          console.warn('[BillingStore] Could not fetch unassigned payments.', message);
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown request error';
       console.warn('[BillingStore] Could not fetch invoices; loading cached records.', message);
+      if (canReviewUnassignedPayments()) {
+        unassignedPaymentsError.value =
+          'Could not load unassigned payments for anomaly review.';
+      }
       invoices.value = await db.invoices.toArray();
       if (invoices.value.length === 0) {
         loadError.value = 'Could not reach the billing service and no cached records are available.';
@@ -100,6 +127,8 @@ export const useBillingStore = defineStore('billing', () => {
 
   return {
     invoices,
+    unassignedPayments,
+    unassignedPaymentsError,
     loading,
     loadError,
     fetchInvoices,
