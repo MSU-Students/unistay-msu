@@ -113,6 +113,21 @@ UniStay MSU operates even during campus network outages:
 
 ---
 
+## 📊 University Admin Reports
+
+University administrators can open **System Reports** in the sidebar or visit `/admin/reports`. The page reads live data from admin-only endpoints under `/api/v1/admin/reports`:
+
+- `overview`, `applications`, `billing`, `maintenance`, `gigs`, `properties`, and `attention`
+- Shared query filters: `propertyId` or comma-separated/repeated `propertyIds`, inclusive calendar dates `dateFrom`/`dateTo` (`YYYY-MM-DD`), `status` where applicable, `page`, `pageSize`, `sortBy`, and `sortOrder`. Date-only bounds include the full end date and follow the database's calendar-date semantics.
+- Pagination defaults to 20 records and is capped at 100 per page. Valid status values follow each module's existing enum.
+- Pending applications older than 7 days, active maintenance tickets older than 7 days, active gigs with no update for 14 days, unpaid invoices past their due date, and property occupancy at or above 90% are surfaced as attention items.
+
+Reports use existing application, invoice/payment, maintenance, gig, property, and unit records. Billing date filters refer to invoice creation dates; collection totals use each invoice's current recorded `paidAmount`. Property rollups apply date filters to associated activity. `status` is ignored for cross-module overview/attention and property rollups because no single status vocabulary applies. Property filters are ignored for gigs, and gig metrics cannot be attributed to individual properties because the current gig model has no property relation. Gig completion is represented by the current `completed` status and update activity; no completion timestamp is stored.
+
+To verify manually, log in with the university admin account, open **System Reports**, and compare module totals with the corresponding live records. Try a property plus inclusive date range and status together, then open the same URL in another session. Requests without authentication should return 401; requests from student or property-manager accounts should return 403.
+
+---
+
 ## 👥 Scrum Team Alignment (5 Teams / 27 Developers)
 
 | Team | Focus Area | Backend Modules | Frontend Views |

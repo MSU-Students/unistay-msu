@@ -45,6 +45,7 @@ async function bootstrap() {
     .addTag('Shared Facilities & Governance', 'Amenity bookings (laundry/parking), incidents, and dorm rules')
     .addTag('Student Gig Board', 'Micro-jobs and student errand marketplace')
     .addTag('Offline Sync Engine', 'Dexie.js offline mutation synchronization queue')
+    .addTag('University Administration Reports', 'Admin-only system-wide operational reports')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

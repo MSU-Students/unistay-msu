@@ -11,6 +11,7 @@ import {
   CalendarDays,
   Briefcase,
   ClipboardCheck,
+  BarChart3,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -27,6 +28,9 @@ const navigation = computed(() => [
           icon: ClipboardCheck,
         },
       ]
+    : []),
+  ...(authStore.isAdmin
+    ? [{ name: 'System Reports', path: '/admin/reports', icon: BarChart3 }]
     : []),
   { name: 'Billing & Utilities', path: '/billing', icon: Receipt },
   { name: 'Maintenance Desk', path: '/maintenance', icon: Wrench },
@@ -51,7 +55,9 @@ const navigation = computed(() => [
         :class="[
           route.path === item.path ||
           (item.path === '/applications/review' &&
-            route.path.startsWith('/applications/review'))
+            route.path.startsWith('/applications/review')) ||
+          (item.path === '/admin/reports' &&
+            route.path.startsWith('/admin/reports'))
             ? 'bg-msu-maroon text-white font-semibold'
             : 'text-slate-400 hover:bg-slate-800 hover:text-white',
           'flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
