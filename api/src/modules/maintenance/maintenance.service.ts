@@ -2,7 +2,12 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MaintenanceTicket, OutageReport, TicketStatus } from './entities/ticket.entity';
-import { CreateOutageReportDto, CreateTicketDto, UpdateTicketStatusDto } from './dto/maintenance.dto';
+import {
+  CreateOutageReportDto,
+  CreateTicketDto,
+  UpdateTicketStatusDto,
+  AssignMaintenanceTicketDto,
+} from './dto/maintenance.dto';
 import { User } from '../users/entities/user.entity';
 import { HousingService } from '../housing/housing.service';
 
@@ -16,19 +21,29 @@ export class MaintenanceService {
     private readonly housingService: HousingService,
   ) {}
 
-  async findAllTickets(reporterId?: string): Promise<MaintenanceTicket[]> {
-    const qb = this.ticketRepo.createQueryBuilder('ticket')
-      .leftJoinAndSelect('ticket.reporter', 'reporter')
-      .leftJoinAndSelect('ticket.property', 'property')
-      .leftJoinAndSelect('ticket.unit', 'unit')
-      .orderBy('ticket.createdAt', 'DESC');
+async findAllTickets(
+  reporterId?: string,
+  managerId?: string,
+): Promise<MaintenanceTicket[]> {
+  const qb = this.ticketRepo
+    .createQueryBuilder('ticket')
+    .leftJoinAndSelect('ticket.reporter', 'reporter')
+    .leftJoinAndSelect('ticket.property', 'property')
+    .leftJoinAndSelect('ticket.unit', 'unit')
+    .leftJoin('property.manager', 'manager')
+    .orderBy('ticket.createdAt', 'DESC');
 
-    if (reporterId) {
-      qb.andWhere('reporter.id = :reporterId', { reporterId });
-    }
-
-    return qb.getMany();
+  if (reporterId) {
+    qb.andWhere('reporter.id = :reporterId', { reporterId });
   }
+
+  if (managerId) {
+    qb.andWhere('manager.id = :managerId', { managerId });
+  }
+
+  return qb.getMany();
+}
+
 
   async findTicketById(id: string): Promise<MaintenanceTicket> {
     const ticket = await this.ticketRepo.findOne({
@@ -67,6 +82,25 @@ export class MaintenanceService {
     }
     return this.ticketRepo.save(ticket);
   }
+
+
+async assignTicket(
+  id: string,
+  dto: AssignMaintenanceTicketDto,
+): Promise<MaintenanceTicket> {
+  const ticket = await this.findTicketById(id);
+
+  if (dto.assignedTo !== undefined) {
+    ticket.assignedTo = dto.assignedTo;
+  }
+
+  if (dto.vendorName !== undefined) {
+    ticket.vendorName = dto.vendorName;
+  }
+
+  return this.ticketRepo.save(ticket);
+}
+
 
   // Outage status tracking
   async findActiveOutages(): Promise<OutageReport[]> {

@@ -9,7 +9,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { MaintenanceService } from './maintenance.service';
-import { CreateOutageReportDto, CreateTicketDto, UpdateTicketStatusDto } from './dto/maintenance.dto';
+import {
+  CreateOutageReportDto,
+  CreateTicketDto,
+  UpdateTicketStatusDto,
+  AssignMaintenanceTicketDto,
+} from './dto/maintenance.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -31,6 +36,10 @@ export class MaintenanceController {
     if (user.role === Role.STUDENT) {
       return this.maintenanceService.findAllTickets(user.id);
     }
+    if (user.role === Role.PROPERTY_MANAGER) {
+      return this.maintenanceService.findAllTickets(undefined, user.id); 
+    }
+
     return this.maintenanceService.findAllTickets();
   }
 
@@ -57,6 +66,16 @@ export class MaintenanceController {
     @Body() dto: UpdateTicketStatusDto,
   ) {
     return this.maintenanceService.updateTicketStatus(id, dto);
+  }
+  
+   @Patch('tickets/:id/assign')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Assign a maintenance ticket to staff or vendor' })
+  async assignTicket(
+    @Param('id') id: string,
+    @Body() dto: AssignMaintenanceTicketDto,
+  ) {
+    return this.maintenanceService.assignTicket(id, dto);
   }
 
   @Public()

@@ -19,6 +19,7 @@ export enum TicketPriority {
 export enum TicketStatus {
   OPEN = 'open',
   IN_PROGRESS = 'in_progress',
+  WAITING_ON_VENDOR = 'waiting_on_vendor',
   RESOLVED = 'resolved',
   CLOSED = 'closed',
 }
@@ -74,6 +75,12 @@ export class MaintenanceTicket {
 
   @ManyToOne(() => Unit, { nullable: true, eager: true })
   unit?: Unit;
+
+  @Column({ nullable: true })
+  assignedTo?: string;
+
+@Column({ nullable: true })
+  vendorName?: string;
 
   @Column({ type: 'text', nullable: true })
   resolutionNotes?: string;

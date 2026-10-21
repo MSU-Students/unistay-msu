@@ -45,6 +45,18 @@ export class UpdateTicketStatusDto {
   resolutionNotes?: string;
 }
 
+export class AssignMaintenanceTicketDto {
+  @ApiPropertyOptional({ description: 'UUID of the assigned user' })
+  @IsOptional()
+  @IsUUID()
+  assignedTo?: string;
+
+  @ApiPropertyOptional({ description: 'Name of the external maintenance vendor' })
+  @IsOptional()
+  @IsString()
+  vendorName?: string;
+}
+
 export class CreateOutageReportDto {
   @ApiProperty({ example: 'Water' })
   @IsString()
