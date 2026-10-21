@@ -10,7 +10,11 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { HousingService } from './housing.service';
-import { CreateApplicationDto, CreatePropertyDto, UpdateApplicationStatusDto } from './dto/housing.dto';
+import {
+  CreateApplicationDto,
+  CreatePropertyDto,
+  UpdateApplicationStatusDto,
+} from './dto/housing.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -70,13 +74,25 @@ export class HousingController {
     return this.housingService.findApplicationsByUser(user);
   }
 
+  @Get('applications')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Get applications for managed properties' })
+  async getApplicationsForManager(@CurrentUser() user: User) {
+    return this.housingService.findApplicationsForManager(user);
+  }
+
   @Patch('applications/:id/status')
   @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
   @ApiOperation({ summary: 'Approve or reject an application' })
   async updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateApplicationStatusDto,
+    @CurrentUser() user: User,
   ) {
-    return this.housingService.updateApplicationStatus(id, dto.status);
+    return this.housingService.updateApplicationStatus(
+      id,
+      dto.status,
+      user,
+    );
   }
 }
