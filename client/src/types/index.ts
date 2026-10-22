@@ -76,6 +76,27 @@ export interface Invoice {
   createdAt: string;
 }
 
+export interface InvoiceTenantOption {
+  tenant: Pick<User, 'id' | 'fullName'>;
+  units: {
+    id: string;
+    roomNumber: string;
+    monthlyRate: number;
+  }[];
+}
+
+export interface CreateInvoiceInput {
+  tenantId: string;
+  propertyId: string;
+  unitId?: string;
+  rentAmount: number;
+  electricityAmount?: number;
+  waterAmount?: number;
+  otherFees?: number;
+  dueDate: string;
+  utilitySplitNotes?: string;
+}
+
 export type TicketCategory = 'plumbing' | 'electrical' | 'sanitation' | 'carpentry' | 'other';
 export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';

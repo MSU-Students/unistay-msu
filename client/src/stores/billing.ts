@@ -1,12 +1,14 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { Invoice } from '../types';
+import { CreateInvoiceInput, Invoice, InvoiceTenantOption, Property } from '../types';
 import apiClient from '../api/client';
 import { db } from '../db';
 import { syncEngine } from '../db/sync-engine';
 
 export const useBillingStore = defineStore('billing', () => {
   const invoices = ref<Invoice[]>([]);
+  const invoiceProperties = ref<Property[]>([]);
+  const invoiceTenants = ref<InvoiceTenantOption[]>([]);
   const loading = ref<boolean>(false);
 
   async function fetchInvoices() {
@@ -22,6 +24,24 @@ export const useBillingStore = defineStore('billing', () => {
     } finally {
       loading.value = false;
     }
+  }
+
+  async function fetchInvoiceProperties() {
+    const res = await apiClient.get('/housing/billing-properties');
+    invoiceProperties.value = res.data.data;
+  }
+
+  async function fetchInvoiceTenants(propertyId: string) {
+    const res = await apiClient.get(
+      `/housing/properties/${propertyId}/billing-tenants`,
+    );
+    invoiceTenants.value = res.data.data;
+  }
+
+  async function createInvoice(payload: CreateInvoiceInput) {
+    const res = await apiClient.post('/billing/invoices', payload);
+    await fetchInvoices();
+    return res.data.data as Invoice;
   }
 
   async function recordPayment(invoiceId: string, amount: number, paymentMethod: 'cash' | 'gcash' | 'bank_transfer') {
@@ -76,8 +96,13 @@ export const useBillingStore = defineStore('billing', () => {
 
   return {
     invoices,
+    invoiceProperties,
+    invoiceTenants,
     loading,
     fetchInvoices,
+    fetchInvoiceProperties,
+    fetchInvoiceTenants,
+    createInvoice,
     recordPayment,
     calculateUtilitySplit,
   };

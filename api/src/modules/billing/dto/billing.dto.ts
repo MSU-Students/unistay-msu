@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { PaymentMethod } from '../entities/invoice.entity';
 
 export class CreateInvoiceDto {
@@ -17,22 +17,30 @@ export class CreateInvoiceDto {
   unitId?: string;
 
   @ApiProperty({ example: 1800 })
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(99999999.99)
   rentAmount: number;
 
   @ApiPropertyOptional({ example: 250 })
   @IsOptional()
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(99999999.99)
   electricityAmount?: number;
 
   @ApiPropertyOptional({ example: 120 })
   @IsOptional()
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(99999999.99)
   waterAmount?: number;
 
   @ApiPropertyOptional({ example: 50 })
   @IsOptional()
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(99999999.99)
   otherFees?: number;
 
   @ApiProperty({ example: '2026-10-15' })
