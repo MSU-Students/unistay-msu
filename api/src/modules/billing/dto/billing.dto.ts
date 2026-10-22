@@ -53,6 +53,46 @@ export class CreateInvoiceDto {
   utilitySplitNotes?: string;
 }
 
+export class UpdateInvoiceDto {
+  @ApiPropertyOptional({ example: 1800 })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(99999999.99)
+  rentAmount?: number;
+
+  @ApiPropertyOptional({ example: 250 })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(99999999.99)
+  electricityAmount?: number;
+
+  @ApiPropertyOptional({ example: 120 })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(99999999.99)
+  waterAmount?: number;
+
+  @ApiPropertyOptional({ example: 50 })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(99999999.99)
+  otherFees?: number;
+
+  @ApiPropertyOptional({ example: '2026-11-15' })
+  @IsOptional()
+  @IsDateString()
+  dueDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  utilitySplitNotes?: string;
+}
+
 export class RecordPaymentDto {
   @ApiProperty()
   @IsUUID()
