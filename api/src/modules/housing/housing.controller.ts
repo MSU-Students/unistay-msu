@@ -43,6 +43,23 @@ export class HousingController {
     return this.housingService.findPropertyById(id);
   }
 
+  @Get('billing-properties')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'List properties available for invoice creation' })
+  async findInvoiceProperties(@CurrentUser() user: User) {
+    return this.housingService.findInvoiceProperties(user);
+  }
+
+  @Get('properties/:id/billing-tenants')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'List active tenants available for invoicing' })
+  async findInvoiceTenants(
+    @Param('id') propertyId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.housingService.findInvoiceTenants(propertyId, user);
+  }
+
   @Post('properties')
   @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
   @ApiOperation({ summary: 'Create a property/dormitory listing' })

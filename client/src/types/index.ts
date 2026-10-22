@@ -50,6 +50,8 @@ export interface Property {
   maxMonthlyRate: number;
   isAccredited: boolean;
   units?: Unit[];
+  availableSlots?: number;
+  totalSlots?: number;
 }
 
 export type ApplicationStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
@@ -92,6 +94,27 @@ export interface Invoice {
   utilitySplitNotes?: string;
   payments?: Payment[];
   createdAt: string;
+}
+
+export interface InvoiceTenantOption {
+  tenant: Pick<User, 'id' | 'fullName'>;
+  units: {
+    id: string;
+    roomNumber: string;
+    monthlyRate: number;
+  }[];
+}
+
+export interface CreateInvoiceInput {
+  tenantId: string;
+  propertyId: string;
+  unitId?: string;
+  rentAmount: number;
+  electricityAmount?: number;
+  waterAmount?: number;
+  otherFees?: number;
+  dueDate: string;
+  utilitySplitNotes?: string;
 }
 
 export type TicketCategory = 'plumbing' | 'electrical' | 'sanitation' | 'carpentry' | 'other';
