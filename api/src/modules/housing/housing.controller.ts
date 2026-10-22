@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { HousingService } from './housing.service';
-import { CreateApplicationDto, CreatePropertyDto, UpdateApplicationStatusDto } from './dto/housing.dto';
+import { CreateApplicationDto, CreatePropertyDto, UpdateApplicationStatusDto, UpdatePropertyDto } from './dto/housing.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -51,6 +51,24 @@ export class HousingController {
     @CurrentUser() user: User,
   ) {
     return this.housingService.createProperty(dto, user);
+  }
+
+  @Patch('properties/:id')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Edit a property listing' })
+  async updateProperty(
+    @Param('id') id: string,
+    @Body() dto: UpdatePropertyDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.housingService.updateProperty(id, dto, user);
+  }
+
+  @Patch('properties/:id/deactivate')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Deactivate a property listing' })
+  async deactivateProperty(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.housingService.deactivateProperty(id, user);
   }
 
   @Post('applications')

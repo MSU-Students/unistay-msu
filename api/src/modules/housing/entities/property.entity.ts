@@ -14,13 +14,40 @@ export enum PropertyType {
   PRIVATE_BOARDING_HOUSE = 'private_boarding_house',
 }
 
+export enum PropertyStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+}
+
 @Entity('properties')
 export class Property {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Column({ nullable: true })
+  title?: string;
+
   @Column()
   name: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  price?: number;
+
+  @Column({
+    type: 'enum',
+    enum: PropertyStatus,
+    default: PropertyStatus.ACTIVE,
+  })
+  status: PropertyStatus;
+
+  @Column({ type: 'json', nullable: true })
+  unitDetails?: {
+    unitNumber?: string;
+    bedrooms?: number;
+    bathrooms?: number;
+    size?: number;
+    [key: string]: any;
+  };
 
   @Column({
     type: 'enum',
