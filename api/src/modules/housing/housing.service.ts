@@ -6,6 +6,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { HousingApplication, HousingApplicationStatus } from './entities/housing-application.entity';
+import {
+  CreateDraftApplicationDto,
+  SubmitApplicationDto,
+  UpdateApplicationDto,
+} from './dto/housing-application.dto';
 import { Property, Unit } from './entities/property.entity';
 import {
   Application,
@@ -31,7 +37,144 @@ export class HousingService {
     private readonly applicationRepo: Repository<Application>,
     @InjectRepository(Unit)
     private readonly unitRepo: Repository<Unit>,
+    @InjectRepository(HousingApplication)
+    private readonly housingApplicationRepo: Repository<HousingApplication>,
   ) {}
+
+  async createHousingApplicationDraft(
+    dto: CreateDraftApplicationDto,
+    student: User,
+  ): Promise<HousingApplication> {
+    const existingDraft = await this.housingApplicationRepo.findOne({
+      where: { studentId: student.id, status: HousingApplicationStatus.DRAFT },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (existingDraft) {
+      return this.applyHousingDraftUpdates(existingDraft, dto);
+    }
+
+    return this.housingApplicationRepo.save(
+      this.housingApplicationRepo.create({
+        studentId: student.id,
+        status: HousingApplicationStatus.DRAFT,
+        personalDetails: dto.personalDetails,
+        academicDetails: dto.academicDetails,
+        housingPreferences: dto.housingPreferences,
+        supportingDocuments: dto.supportingDocuments ?? [],
+      }),
+    );
+  }
+
+  async updateHousingApplicationDraft(
+    id: string,
+    dto: UpdateApplicationDto,
+    student: User,
+  ): Promise<HousingApplication> {
+    const application = await this.findOwnedHousingApplication(id, student);
+    this.ensureHousingDraft(application);
+    return this.applyHousingDraftUpdates(application, dto);
+  }
+
+  async submitHousingApplication(
+    id: string,
+    dto: SubmitApplicationDto,
+    student: User,
+  ): Promise<{
+    confirmationId: string;
+    confirmationCode: string;
+    submittedAt: Date;
+    status: HousingApplicationStatus;
+  }> {
+    const application = await this.findOwnedHousingApplication(id, student);
+    this.ensureHousingDraft(application);
+
+    application.personalDetails = dto.personalDetails;
+    application.academicDetails = dto.academicDetails;
+    application.housingPreferences = dto.housingPreferences;
+    if (dto.supportingDocuments !== undefined) {
+      application.supportingDocuments = dto.supportingDocuments;
+    }
+    application.status = HousingApplicationStatus.SUBMITTED;
+    application.submittedAt = new Date();
+
+    const savedApplication = await this.housingApplicationRepo.save(application);
+    return {
+      confirmationId: savedApplication.id,
+      confirmationCode: `HSG-${savedApplication.id.toUpperCase()}`,
+      submittedAt: savedApplication.submittedAt,
+      status: savedApplication.status,
+    };
+  }
+
+  async findMyHousingApplication(
+    student: User,
+  ): Promise<HousingApplication | null> {
+    return this.housingApplicationRepo.findOne({
+      where: { studentId: student.id },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  private async applyHousingDraftUpdates(
+    application: HousingApplication,
+    dto: CreateDraftApplicationDto | UpdateApplicationDto,
+  ): Promise<HousingApplication> {
+    if (dto.personalDetails) {
+      application.personalDetails = {
+        ...application.personalDetails,
+        ...dto.personalDetails,
+        emergencyContact: dto.personalDetails.emergencyContact
+          ? {
+              ...application.personalDetails?.emergencyContact,
+              ...dto.personalDetails.emergencyContact,
+            }
+          : application.personalDetails?.emergencyContact,
+      };
+    }
+    if (dto.academicDetails) {
+      application.academicDetails = {
+        ...application.academicDetails,
+        ...dto.academicDetails,
+      };
+    }
+    if (dto.housingPreferences) {
+      application.housingPreferences = {
+        ...application.housingPreferences,
+        ...dto.housingPreferences,
+      };
+    }
+    if (dto.supportingDocuments !== undefined) {
+      application.supportingDocuments = dto.supportingDocuments;
+    }
+    return this.housingApplicationRepo.save(application);
+  }
+
+  private async findOwnedHousingApplication(
+    id: string,
+    student: User,
+  ): Promise<HousingApplication> {
+    const application = await this.housingApplicationRepo.findOne({
+      where: { id },
+    });
+    if (!application) {
+      throw new NotFoundException(`Housing application with ID ${id} not found`);
+    }
+    if (application.studentId !== student.id) {
+      throw new ForbiddenException(
+        'You can only modify your own housing applications',
+      );
+    }
+    return application;
+  }
+
+  private ensureHousingDraft(application: HousingApplication): void {
+    if (application.status !== HousingApplicationStatus.DRAFT) {
+      throw new BadRequestException(
+        'Only draft housing applications can be modified or submitted',
+      );
+    }
+  }
 
   async findAllProperties(query?: { type?: string; maxPrice?: number }): Promise<Property[]> {
     const qb = this.propertyRepo.createQueryBuilder('property')

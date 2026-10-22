@@ -23,6 +23,11 @@ import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { User } from '../users/entities/user.entity';
+import {
+  CreateDraftApplicationDto,
+  SubmitApplicationDto,
+  UpdateApplicationDto,
+} from './dto/housing-application.dto';
 
 @ApiTags('Housing & Dormitories')
 @ApiBearerAuth()
@@ -30,6 +35,45 @@ import { User } from '../users/entities/user.entity';
 @Controller('housing')
 export class HousingController {
   constructor(private readonly housingService: HousingService) {}
+
+  @Post('applications/draft')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Create or update the current housing application draft' })
+  async createApplicationDraft(
+    @Body() dto: CreateDraftApplicationDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.housingService.createHousingApplicationDraft(dto, user);
+  }
+
+  @Patch('applications/:id/draft')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Update a housing application draft' })
+  async patchApplicationDraft(
+    @Param('id') id: string,
+    @Body() dto: UpdateApplicationDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.housingService.updateHousingApplicationDraft(id, dto, user);
+  }
+
+  @Post('applications/:id/submit')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Submit a completed housing application' })
+  async submitHousingApplication(
+    @Param('id') id: string,
+    @Body() dto: SubmitApplicationDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.housingService.submitHousingApplication(id, dto, user);
+  }
+
+  @Get('applications/my-application')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: "Get the student's current housing application" })
+  async getMyHousingApplication(@CurrentUser() user: User) {
+    return this.housingService.findMyHousingApplication(user);
+  }
 
   @Public()
   @Get('properties')
@@ -76,17 +120,6 @@ export class HousingController {
     @CurrentUser() user: User,
   ) {
     return this.housingService.saveApplicationDraft(dto, user);
-  }
-
-  @Patch('applications/:id/draft')
-  @Roles(Role.STUDENT)
-  @ApiOperation({ summary: 'Update a saved housing application draft' })
-  async updateApplicationDraft(
-    @Param('id') id: string,
-    @Body() dto: SaveApplicationDraftDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.housingService.updateApplicationDraft(id, dto, user);
   }
 
   @Patch('applications/:id/submit')
