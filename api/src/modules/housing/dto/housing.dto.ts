@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  ValidateNested,
+} from 'class-validator';
 import { PropertyType } from '../entities/property.entity';
 import { ApplicationStatus } from '../entities/application.entity';
 
@@ -44,6 +53,18 @@ export class CreateApplicationDto {
   @IsUUID()
   propertyId: string;
 
+  @ApiPropertyOptional({ type: () => ApplicationPersonalDetailsDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ApplicationPersonalDetailsDto)
+  personalDetails?: ApplicationPersonalDetailsDto;
+
+  @ApiPropertyOptional({ type: () => ApplicationAcademicDetailsDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ApplicationAcademicDetailsDto)
+  academicDetails?: ApplicationAcademicDetailsDto;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
@@ -53,6 +74,59 @@ export class CreateApplicationDto {
   @IsOptional()
   @IsString()
   remarks?: string;
+}
+
+export class SaveApplicationDraftDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  propertyId?: string;
+
+  @ApiPropertyOptional({ type: () => ApplicationPersonalDetailsDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ApplicationPersonalDetailsDto)
+  personalDetails?: ApplicationPersonalDetailsDto;
+
+  @ApiPropertyOptional({ type: () => ApplicationAcademicDetailsDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ApplicationAcademicDetailsDto)
+  academicDetails?: ApplicationAcademicDetailsDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  unitId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  remarks?: string;
+}
+
+export class ApplicationPersonalDetailsDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  studentIdNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string;
+}
+
+export class ApplicationAcademicDetailsDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  college?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  course?: string;
 }
 
 export class UpdateApplicationStatusDto {
