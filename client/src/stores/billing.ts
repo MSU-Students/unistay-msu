@@ -1,6 +1,13 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import { CreateInvoiceInput, Invoice, InvoiceTenantOption, Property } from '../types';
+import { ref, toRaw } from 'vue';
+import { isAxiosError } from 'axios';
+import {
+  CreateInvoiceInput,
+  Invoice,
+  InvoiceTenantOption,
+  Payment,
+  Property,
+} from '../types';
 import apiClient from '../api/client';
 import { db } from '../db';
 import { syncEngine } from '../db/sync-engine';
@@ -10,17 +17,29 @@ export const useBillingStore = defineStore('billing', () => {
   const invoiceProperties = ref<Property[]>([]);
   const invoiceTenants = ref<InvoiceTenantOption[]>([]);
   const loading = ref<boolean>(false);
+  const loadError = ref<string | null>(null);
 
   async function fetchInvoices() {
     loading.value = true;
+    loadError.value = null;
     try {
       const res = await apiClient.get('/billing/invoices');
-      invoices.value = res.data.data;
-      await db.invoices.clear();
-      await db.invoices.bulkPut(invoices.value);
+      const latestInvoices: Invoice[] = res.data.data;
+      invoices.value = latestInvoices;
+      try {
+        await db.invoices.clear();
+        await db.invoices.bulkPut(latestInvoices);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown storage error';
+        console.warn('[BillingStore] Could not cache the latest invoices locally.', message);
+      }
     } catch (err) {
-      console.warn('[BillingStore] Loading cached invoices from Dexie...');
+      const message = err instanceof Error ? err.message : 'Unknown request error';
+      console.warn('[BillingStore] Could not fetch invoices; loading cached records.', message);
       invoices.value = await db.invoices.toArray();
+      if (invoices.value.length === 0) {
+        loadError.value = 'Could not reach the billing service and no cached records are available.';
+      }
     } finally {
       loading.value = false;
     }
@@ -59,7 +78,9 @@ export const useBillingStore = defineStore('billing', () => {
         await fetchInvoices();
         return { online: true, data: res.data.data };
       } catch (err) {
-        // Fallback to queue if request failed
+        if (!isAxiosError(err) || err.response) {
+          throw err;
+        }
       }
     }
 
@@ -75,7 +96,16 @@ export const useBillingStore = defineStore('billing', () => {
       } else {
         inv.status = 'partially_paid';
       }
-      await db.invoices.put(inv);
+      const optimisticPayment: Payment = {
+        id: payload.offlineReferenceId,
+        amount,
+        paymentMethod,
+        paymentDate: new Date().toISOString(),
+        offlineReferenceId: payload.offlineReferenceId,
+        isSynced: false,
+      };
+      inv.payments = [optimisticPayment, ...(inv.payments || [])];
+      await db.invoices.put(toRaw(inv));
     }
 
     return {
@@ -99,6 +129,7 @@ export const useBillingStore = defineStore('billing', () => {
     invoiceProperties,
     invoiceTenants,
     loading,
+    loadError,
     fetchInvoices,
     fetchInvoiceProperties,
     fetchInvoiceTenants,

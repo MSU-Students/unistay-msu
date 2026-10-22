@@ -6,7 +6,9 @@ import MaintenanceDeskView from '../views/MaintenanceDeskView.vue';
 import FacilityBookingView from '../views/FacilityBookingView.vue';
 import GigBoardView from '../views/GigBoardView.vue';
 import LoginView from '../views/LoginView.vue';
+import RegisterView from '../views/RegisterView.vue';
 import AuthCallbackView from '../views/AuthCallbackView.vue';
+import ApplicationsReviewView from '../views/ApplicationsReviewView.vue';
 import { useAuthStore } from '../stores/auth';
 
 const routes: RouteRecordRaw[] = [
@@ -22,6 +24,16 @@ const routes: RouteRecordRaw[] = [
     component: HousingDirectoryView,
     meta: { requiresAuth: false, title: 'Dormitory & Housing Directory' },
   },
+  {
+  path: '/applications/review',
+  name: 'applications-review',
+  component: ApplicationsReviewView,
+  meta: {
+    requiresAuth: true,
+    requiresManager: true,
+    title: 'Applications Review',
+  },
+},
   {
     path: '/billing',
     name: 'billing',
@@ -53,6 +65,12 @@ const routes: RouteRecordRaw[] = [
     meta: { guestOnly: true, title: 'Institutional Login' },
   },
   {
+    path: '/register',
+    name: 'register',
+    component: RegisterView,
+    meta: { guestOnly: true, title: 'Student Self-Registration' },
+  },
+  {
     path: '/auth/callback',
     name: 'auth-callback',
     component: AuthCallbackView,
@@ -65,6 +83,7 @@ const router = createRouter({
   routes,
 });
 
+
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
   await authStore.restoreOfflineSession();
@@ -75,9 +94,12 @@ router.beforeEach(async (to, from, next) => {
     next({ name: 'login', query: { redirect: to.fullPath } });
   } else if (to.meta.guestOnly && authStore.isAuthenticated) {
     next({ name: 'dashboard' });
+  } else if (to.meta.requiresManager && !authStore.isManager) {
+    next({ name: 'dashboard' });
   } else {
     next();
   }
 });
+
 
 export default router;

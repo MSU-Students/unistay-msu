@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Invoice, InvoiceStatus, Payment } from './entities/invoice.entity';
 import { CreateInvoiceDto, RecordPaymentDto } from './dto/billing.dto';
 import { HousingService } from '../housing/housing.service';
 import { User } from '../users/entities/user.entity';
+import { Role } from '../../common/enums/role.enum';
 
 @Injectable()
 export class BillingService {
@@ -22,23 +23,55 @@ export class BillingService {
       .leftJoinAndSelect('invoice.property', 'property')
       .leftJoinAndSelect('invoice.unit', 'unit')
       .leftJoinAndSelect('invoice.payments', 'payments')
-      .orderBy('invoice.createdAt', 'DESC');
+      .orderBy('invoice.dueDate', 'DESC')
+      .addOrderBy('payments.paymentDate', 'DESC');
 
     if (userId) {
       qb.andWhere('tenant.id = :userId', { userId });
     }
 
-    return qb.getMany();
+    const invoices = await qb.getMany();
+    return invoices.map((invoice) => this.refreshInvoiceStatus(invoice));
   }
 
-  async findInvoiceById(id: string): Promise<Invoice> {
-    const invoice = await this.invoiceRepo.findOne({
-      where: { id },
-      relations: ['tenant', 'property', 'unit', 'payments'],
-    });
+  async findInvoiceById(id: string, tenantId?: string): Promise<Invoice> {
+    const qb = this.invoiceRepo.createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.tenant', 'tenant')
+      .leftJoinAndSelect('invoice.property', 'property')
+      .leftJoinAndSelect('invoice.unit', 'unit')
+      .leftJoinAndSelect('invoice.payments', 'payments')
+      .where('invoice.id = :id', { id })
+      .orderBy('payments.paymentDate', 'DESC');
+
+    if (tenantId) {
+      qb.andWhere('tenant.id = :tenantId', { tenantId });
+    }
+
+    const invoice = await qb.getOne();
     if (!invoice) {
       throw new NotFoundException(`Invoice with ID ${id} not found`);
     }
+    return this.refreshInvoiceStatus(invoice);
+  }
+
+  private refreshInvoiceStatus(invoice: Invoice): Invoice {
+    const totalAmount = Number(invoice.totalAmount);
+    const paidAmount = Number(invoice.paidAmount);
+    const dueDate = new Date(invoice.dueDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    dueDate.setHours(0, 0, 0, 0);
+
+    if (totalAmount > 0 && paidAmount >= totalAmount) {
+      invoice.status = InvoiceStatus.PAID;
+    } else if (dueDate < today) {
+      invoice.status = InvoiceStatus.OVERDUE;
+    } else if (paidAmount > 0) {
+      invoice.status = InvoiceStatus.PARTIALLY_PAID;
+    } else {
+      invoice.status = InvoiceStatus.UNPAID;
+    }
+
     return invoice;
   }
 
@@ -50,6 +83,7 @@ export class BillingService {
         dto.unitId,
         createdBy,
       );
+
 
     const rent = Number(dto.rentAmount || 0);
     const electricity = Number(dto.electricityAmount || 0);
@@ -79,7 +113,15 @@ export class BillingService {
   }
 
   async recordPayment(dto: RecordPaymentDto, recordedBy?: User): Promise<Payment> {
-    const invoice = await this.findInvoiceById(dto.invoiceId);
+    const invoice = await this.findInvoiceById(
+      dto.invoiceId,
+      recordedBy?.role === Role.STUDENT ? recordedBy.id : undefined,
+    );
+    const outstandingBalance = Number(invoice.totalAmount) - Number(invoice.paidAmount);
+    if (dto.amount <= 0 || dto.amount > outstandingBalance) {
+      throw new BadRequestException('Payment amount must be greater than zero and no more than the outstanding balance');
+    }
+
     const payment = this.paymentRepo.create({
       invoice,
       amount: dto.amount,
@@ -90,18 +132,17 @@ export class BillingService {
       recordedBy,
     });
 
-    await this.paymentRepo.save(payment);
+    const paidAmount = Number(invoice.paidAmount) + Number(dto.amount);
+    const status =
+      paidAmount >= Number(invoice.totalAmount)
+        ? InvoiceStatus.PAID
+        : InvoiceStatus.PARTIALLY_PAID;
 
-    // Update invoice paid balance
-    invoice.paidAmount = Number(invoice.paidAmount) + Number(dto.amount);
-    if (invoice.paidAmount >= invoice.totalAmount) {
-      invoice.status = InvoiceStatus.PAID;
-    } else if (invoice.paidAmount > 0) {
-      invoice.status = InvoiceStatus.PARTIALLY_PAID;
-    }
-    await this.invoiceRepo.save(invoice);
-
-    return payment;
+    return this.invoiceRepo.manager.transaction(async (manager) => {
+      const savedPayment = await manager.getRepository(Payment).save(payment);
+      await manager.getRepository(Invoice).update(invoice.id, { paidAmount, status });
+      return savedPayment;
+    });
   }
   async getFinancialSummary(filters: {
     propertyId?: string;

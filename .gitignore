@@ -39,6 +39,8 @@ Thumbs.db
 # Storage & Uploads
 uploads/
 storage/
+!api/src/modules/storage/
+!api/src/modules/storage/**
 
 # Testing & Coverage
 coverage/

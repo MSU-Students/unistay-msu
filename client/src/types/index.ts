@@ -4,10 +4,27 @@ export interface User {
   id: string;
   email: string;
   fullName: string;
+  nickName?: string;
+  studentIdNumber?: string;
+  college?: string;
+  course?: string;
+  phoneNumber?: string;
   role: UserRole;
   avatarUrl?: string;
   isInstitutionalVerified?: boolean;
 }
+
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  fullName: string;
+  studentIdNumber?: string;
+  college?: string;
+  course?: string;
+  phoneNumber?: string;
+  nickName?: string;
+}
+
 
 export type PropertyType = 'institutional_dorm' | 'private_boarding_house';
 
@@ -33,6 +50,8 @@ export interface Property {
   maxMonthlyRate: number;
   isAccredited: boolean;
   units?: Unit[];
+  availableSlots?: number;
+  totalSlots?: number;
 }
 
 export type ApplicationStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
@@ -63,6 +82,7 @@ export interface Invoice {
   invoiceNumber: string;
   tenant: User;
   property: Property;
+  unit?: Unit;
   rentAmount: number;
   electricityAmount: number;
   waterAmount: number;
