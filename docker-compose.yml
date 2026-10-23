@@ -52,8 +52,8 @@ services:
 
   api:
     build:
-      context: .
-      dockerfile: api/Dockerfile
+      context: ./api
+      dockerfile: Dockerfile
     container_name: unistay_api
     restart: unless-stopped
     environment:
