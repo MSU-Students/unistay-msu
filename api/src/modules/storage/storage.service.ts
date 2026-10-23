@@ -33,6 +33,10 @@ export class StorageService {
     }
   }
 
+  getObjectReference(fileName: string): string {
+    return `/${this.bucketName}/${fileName}`;
+  }
+
   getClient(): Minio.Client {
     return this.minioClient;
   }

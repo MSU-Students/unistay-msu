@@ -11,6 +11,11 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { HousingService } from './housing.service';
 import { CreateApplicationDto, CreatePropertyDto, UpdateApplicationStatusDto } from './dto/housing.dto';
+import {
+  CreateDraftApplicationDto,
+  SubmitApplicationDto,
+  UpdateApplicationDto,
+} from './dto/housing-application.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -61,6 +66,45 @@ export class HousingController {
     @CurrentUser() user: User,
   ) {
     return this.housingService.createApplication(dto, user);
+  }
+
+  @Post('applications/draft')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Save or update the current housing application draft' })
+  async saveApplicationDraft(
+    @Body() dto: CreateDraftApplicationDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.housingService.saveDraft(dto, user);
+  }
+
+  @Patch('applications/:id/draft')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Update a housing application draft' })
+  async updateApplicationDraft(
+    @Param('id') id: string,
+    @Body() dto: UpdateApplicationDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.housingService.updateDraft(id, dto, user);
+  }
+
+  @Post('applications/:id/submit')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Submit a completed housing application' })
+  async submitHousingApplication(
+    @Param('id') id: string,
+    @Body() dto: SubmitApplicationDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.housingService.submitHousingApplication(id, dto, user);
+  }
+
+  @Get('applications/my-application')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Get the current student housing application' })
+  async getMyHousingApplication(@CurrentUser() user: User) {
+    return this.housingService.findMyHousingApplication(user);
   }
 
   @Get('my-applications')
