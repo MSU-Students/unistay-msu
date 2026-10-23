@@ -1,7 +1,8 @@
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import AppLayout from '../components/layout/AppLayout.vue';
+import { useHousingStore } from '../stores/housing';
 import {
   Search,
   FileText,
@@ -29,47 +30,60 @@ interface ReviewApplication {
   notes: string;
 }
 
-const applications = ref<ReviewApplication[]>([
-  {
-    id: 'APP-DEMO-001',
-    studentName: 'Sample Student One',
-    studentEmail: 'student1@example.com',
-    propertyName: 'MSU Partner Residence',
-    roomNumber: 'Room 204',
-    submittedAt: '2026-10-15',
-    status: 'pending',
-    purpose: 'Near-campus accommodation for the semester.',
-    notes: '',
-  },
-  {
-    id: 'APP-DEMO-002',
-    studentName: 'Sample Student Two',
-    studentEmail: 'student2@example.com',
-    propertyName: 'University View Boarding House',
-    roomNumber: 'Room 105',
-    submittedAt: '2026-10-14',
-    status: 'pending',
-    purpose: 'Looking for student housing near campus.',
-    notes: '',
-  },
-  {
-    id: 'APP-DEMO-003',
-    studentName: 'Sample Student Three',
-    studentEmail: 'student3@example.com',
-    propertyName: 'MSU Partner Residence',
-    roomNumber: 'Room 301',
-    submittedAt: '2026-10-12',
-    status: 'approved',
-    purpose: 'Accommodation for the current academic term.',
-    notes: 'Demo note: application reviewed.',
-  },
-]);
+interface ApiApplication {
+  id: string;
+  applicant?: {
+    fullName?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  };
+  property?: {
+    name?: string;
+  };
+  unit?: {
+    roomNumber?: string;
+    roomName?: string;
+  };
+  status: string;
+  createdAt?: string;
+  remarks?: string | null;
+  purpose?: string;
+}
 
+const housingStore = useHousingStore();
+const applications = ref<ReviewApplication[]>([]);
 const searchQuery = ref('');
 const statusFilter = ref<'all' | ReviewStatus>('all');
-const selectedApplicationId = ref('APP-DEMO-001');
+const selectedApplicationId = ref('');
 const noteDraft = ref('');
 const feedback = ref('');
+const isLoading = ref(false);
+const isSavingStatus = ref(false);
+const loadError = ref('');
+
+function mapApplication(item: ApiApplication): ReviewApplication {
+  const applicantName =
+    item.applicant?.fullName ||
+    [item.applicant?.firstName, item.applicant?.lastName].filter(Boolean).join(' ') ||
+    'Student name unavailable';
+
+  return {
+    id: item.id,
+    studentName: applicantName,
+    studentEmail: item.applicant?.email || 'Email unavailable',
+    propertyName: item.property?.name || 'Property unavailable',
+    roomNumber: item.unit?.roomNumber || item.unit?.roomName || 'No unit assigned',
+    submittedAt: item.createdAt
+      ? new Date(item.createdAt).toLocaleDateString()
+      : 'Date unavailable',
+    status: item.status === 'approved' || item.status === 'rejected'
+      ? item.status
+      : 'pending',
+    purpose: item.purpose || item.remarks || 'No purpose or remarks provided.',
+    notes: '',
+  };
+}
 
 const selectedApplication = computed(() =>
   applications.value.find(app => app.id === selectedApplicationId.value) ?? null,
@@ -103,32 +117,78 @@ const rejectedCount = computed(
   () => applications.value.filter(app => app.status === 'rejected').length,
 );
 
+watch(selectedApplication, app => {
+  noteDraft.value = app?.notes ?? '';
+});
+
+
+async function loadApplications() {
+  isLoading.value = true;
+  loadError.value = '';
+  feedback.value = '';
+
+  try {
+    await housingStore.fetchManagerApplications();
+
+    const responseApplications =
+      housingStore.applications as unknown as ApiApplication[];
+
+    applications.value = Array.isArray(responseApplications)
+      ? responseApplications.map(mapApplication)
+      : [];
+
+    if (
+      !selectedApplicationId.value ||
+      !applications.value.some(
+        app => app.id === selectedApplicationId.value,
+      )
+    ) {
+      selectedApplicationId.value = applications.value[0]?.id ?? '';
+    }
+  } catch (error) {
+    console.error('Failed to load manager applications:', error);
+
+    loadError.value =
+      'Unable to load applications. The request failed. Please check the API, your login, and your permissions.';
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+
 function selectApplication(app: ReviewApplication) {
   selectedApplicationId.value = app.id;
   noteDraft.value = app.notes;
   feedback.value = '';
 }
 
-function updateStatus(status: ReviewStatus) {
-  if (!selectedApplication.value) return;
+async function updateStatus(status: 'approved' | 'rejected') {
+  if (!selectedApplication.value || isSavingStatus.value) return;
 
-  selectedApplication.value.status = status;
-  selectedApplication.value.notes = noteDraft.value.trim();
-  feedback.value =
-    `Demo only: ${selectedApplication.value.id} marked ${status}. This change is not saved to the server.`;
-}
+  const applicationId = selectedApplication.value.id;
+  isSavingStatus.value = true;
+  feedback.value = '';
 
-function saveDemoNote() {
-  if (!selectedApplication.value) return;
+  try {
+    await housingStore.updateApplicationStatus(applicationId, status);
+    await loadApplications();
 
-  selectedApplication.value.notes = noteDraft.value.trim();
-  feedback.value =
-    'Demo note updated in this page only. It has not been saved to the server.';
+    selectedApplicationId.value = applicationId;
+    feedback.value = `Application ${applicationId} was ${status}.`;
+  } catch (error) {
+    console.error('Failed to update application status:', error);
+    feedback.value =
+      'Could not update the application. Please check your connection and permissions, then try again.';
+  } finally {
+    isSavingStatus.value = false;
+  }
 }
 
 function statusLabel(status: ReviewStatus) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
+
+onMounted(loadApplications);
 </script>
 
 <template>
@@ -145,9 +205,9 @@ function statusLabel(status: ReviewStatus) {
         </p>
       </div>
 
-      <div class="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+      <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700">
         <ShieldAlert class="h-4 w-4 shrink-0" />
-        Demo data only
+        Live application records
       </div>
     </div>
 
@@ -206,7 +266,22 @@ function statusLabel(status: ReviewStatus) {
           </div>
         </div>
 
-        <div v-if="filteredApplications.length" class="divide-y divide-slate-100">
+        <div v-if="isLoading" class="p-8 text-center text-sm text-slate-500">
+          Loading applications...
+        </div>
+
+        <div v-else-if="loadError" class="p-6">
+          <p role="alert" class="text-sm text-red-700">{{ loadError }}</p>
+          <button
+            type="button"
+            @click="loadApplications"
+            class="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Try again
+          </button>
+        </div>
+
+        <div v-else-if="filteredApplications.length" class="divide-y divide-slate-100">
           <button
             v-for="app in filteredApplications"
             :key="app.id"
@@ -314,38 +389,34 @@ function statusLabel(status: ReviewStatus) {
                 id="review-notes"
                 v-model="noteDraft"
                 rows="3"
-                placeholder="Add notes for the review..."
-                class="mt-2 w-full rounded-lg border border-slate-300 p-3 text-sm outline-none focus:border-msu-maroon focus:ring-2 focus:ring-red-100"
+                placeholder="Internal review notes are not connected to the API yet."
+                disabled
+                class="mt-2 w-full rounded-lg border border-slate-300 bg-slate-50 p-3 text-sm text-slate-500 outline-none"
               />
-              <button
-                type="button"
-                @click="saveDemoNote"
-                class="mt-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Save demo note
-              </button>
             </div>
 
-            <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-              These are sample records. Decisions and notes change only in this page's temporary demo state.
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">
+              Application details and decisions are loaded from the API. Internal review notes are not persisted because a notes-update API endpoint is not currently connected.
             </div>
 
             <div v-if="selectedApplication.status === 'pending'" class="flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
                 @click="updateStatus('approved')"
-                class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                :disabled="isSavingStatus"
+                class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <CheckCircle2 class="h-4 w-4" />
-                Approve demo
+                {{ isSavingStatus ? 'Saving...' : 'Approve application' }}
               </button>
               <button
                 type="button"
                 @click="updateStatus('rejected')"
-                class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
+                :disabled="isSavingStatus"
+                class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <XCircle class="h-4 w-4" />
-                Reject demo
+                {{ isSavingStatus ? 'Saving...' : 'Reject application' }}
               </button>
             </div>
 

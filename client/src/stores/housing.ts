@@ -13,13 +13,18 @@ export const useHousingStore = defineStore('housing', () => {
   async function fetchProperties(filter?: { type?: string; maxPrice?: number }) {
     loading.value = true;
     try {
-      const res = await apiClient.get('/housing/properties', { params: filter });
+      const res = await apiClient.get('/housing/properties', {
+        params: filter,
+      });
       properties.value = res.data.data;
+
       // Cache in Dexie for offline lookup
       await db.properties.clear();
       await db.properties.bulkPut(properties.value);
     } catch (err) {
-      console.warn('[HousingStore] API unreachable, loading properties from Dexie offline cache...');
+      console.warn(
+        '[HousingStore] API unreachable, loading properties from Dexie offline cache...',
+      );
       properties.value = await db.properties.toArray();
     } finally {
       loading.value = false;
@@ -39,7 +44,10 @@ export const useHousingStore = defineStore('housing', () => {
   }
 
   async function submitApplication(propertyId: string, remarks?: string) {
-    const res = await apiClient.post('/housing/applications', { propertyId, remarks });
+    const res = await apiClient.post('/housing/applications', {
+      propertyId,
+      remarks,
+    });
     return res.data.data;
   }
 
@@ -52,6 +60,33 @@ export const useHousingStore = defineStore('housing', () => {
     }
   }
 
+  async function fetchManagerApplications() {
+    loading.value = true;
+    try {
+      const res = await apiClient.get('/housing/applications');
+      applications.value = res.data.data;
+    } catch (err) {
+      console.error(
+        '[HousingStore] Unable to fetch manager applications',
+        err,
+      );
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+  async function updateApplicationStatus(
+    id: string,
+    status: 'approved' | 'rejected',
+  ) {
+    const res = await apiClient.patch(
+      `/housing/applications/${id}/status`,
+      { status },
+    );
+    return res.data;
+  }
+
+
   return {
     properties,
     applications,
@@ -61,5 +96,7 @@ export const useHousingStore = defineStore('housing', () => {
     fetchPropertyById,
     submitApplication,
     fetchMyApplications,
+    fetchManagerApplications,
+    updateApplicationStatus,
   };
 });

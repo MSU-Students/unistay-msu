@@ -52,6 +52,8 @@ export interface Property {
   availableSlots?: number;
   totalSlots?: number;
   units?: Unit[];
+  availableSlots?: number;
+  totalSlots?: number;
 }
 
 export type ApplicationStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
