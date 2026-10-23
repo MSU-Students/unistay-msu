@@ -1,11 +1,42 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue';
-import { CheckCircle2, Clock, Download, Printer } from 'lucide-vue-next';
+import { computed, nextTick, ref } from 'vue';
+import { CheckCircle2, Clock, Download, Printer, TriangleAlert } from 'lucide-vue-next';
 import { useBillingStore } from '../../stores/billing';
 import { Invoice, Payment } from '../../types';
 
 const billingStore = useBillingStore();
 const printingInvoiceId = ref<string | null>(null);
+const anomaliesOnly = ref(false);
+
+const anomalyCount = computed(() =>
+  billingStore.invoices.reduce(
+    (count, invoice) =>
+      count + (invoice.payments || []).filter((payment) => payment.is_anomaly).length,
+    0,
+  ) + billingStore.unassignedPayments.length,
+);
+
+const displayedInvoices = computed(() =>
+  anomaliesOnly.value
+    ? billingStore.invoices.filter((invoice) =>
+        invoice.payments?.some((payment) => payment.is_anomaly),
+      )
+    : billingStore.invoices,
+);
+
+function visiblePayments(invoice: Invoice): Payment[] {
+  const payments = invoice.payments || [];
+  return anomaliesOnly.value ? payments.filter((payment) => payment.is_anomaly) : payments;
+}
+
+function invoiceHasAnomaly(invoice: Invoice): boolean {
+  return Boolean(invoice.payments?.some((payment) => payment.is_anomaly));
+}
+
+function anomalyTooltip(payment: Payment): string {
+  const details = payment.anomaly_details;
+  return details ? `${details.type}: ${details.reason}` : 'Payment flagged for review.';
+}
 
 const csvHeaders = [
   'Invoice number',
@@ -133,6 +164,18 @@ async function printInvoice(invoiceId: string) {
       </div>
       <div class="print-hidden flex gap-2">
         <button
+          type="button"
+          :aria-pressed="anomaliesOnly"
+          @click="anomaliesOnly = !anomaliesOnly"
+          class="inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-semibold transition-colors"
+          :class="anomaliesOnly
+            ? 'border-amber-400 bg-amber-100 text-amber-900'
+            : 'border-amber-300 text-amber-800 hover:bg-amber-50'"
+        >
+          <TriangleAlert class="h-3.5 w-3.5" />
+          Anomalies only ({{ anomalyCount }})
+        </button>
+        <button
           @click="downloadLedger"
           :disabled="billingStore.invoices.length === 0"
           class="inline-flex items-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
@@ -157,6 +200,48 @@ async function printInvoice(invoiceId: string) {
       {{ billingStore.loadError }}
     </div>
 
+    <div
+      v-if="billingStore.unassignedPaymentsError"
+      role="alert"
+      class="border-b border-amber-200 bg-amber-50 px-5 py-3 text-xs text-amber-800"
+    >
+      {{ billingStore.unassignedPaymentsError }}
+    </div>
+
+    <section
+      v-if="billingStore.unassignedPayments.length"
+      aria-label="Unassigned payments requiring review"
+      class="border-b border-amber-200 bg-amber-50/70 px-5 py-4"
+    >
+      <h3 class="text-xs font-bold text-amber-950">
+        Unassigned payments · {{ billingStore.unassignedPayments.length }}
+      </h3>
+      <ul class="mt-2 space-y-2">
+        <li
+          v-for="payment in billingStore.unassignedPayments"
+          :key="payment.id"
+          class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2"
+        >
+          <div>
+            <div class="font-semibold text-slate-800">
+              ₱{{ formatMoney(payment.amount) }} · {{ formatDate(payment.paymentDate) }}
+            </div>
+            <div class="text-[11px] text-slate-500">
+              {{ payment.offlineReferenceId || payment.id }} · No linked invoice
+            </div>
+          </div>
+          <span
+            :title="anomalyTooltip(payment)"
+            :aria-label="`Payment anomaly: ${anomalyTooltip(payment)}`"
+            class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900"
+          >
+            <TriangleAlert class="h-3 w-3" />
+            {{ payment.anomaly_details?.severity || 'HIGH' }} anomaly
+          </span>
+        </li>
+      </ul>
+    </section>
+
     <div class="overflow-x-auto">
       <table class="w-full min-w-[1180px] text-left text-xs">
         <thead class="border-b border-slate-200 bg-slate-50 uppercase tracking-wider text-slate-500">
@@ -176,15 +261,24 @@ async function printInvoice(invoiceId: string) {
           <tr v-if="billingStore.loading">
             <td colspan="9" class="px-5 py-8 text-center text-slate-500">Loading billing records…</td>
           </tr>
-          <tr v-else-if="billingStore.invoices.length === 0">
-            <td colspan="9" class="px-5 py-8 text-center text-slate-400">No billing records found.</td>
+          <tr v-else-if="displayedInvoices.length === 0">
+            <td colspan="9" class="px-5 py-8 text-center text-slate-400">
+              {{
+                anomaliesOnly && anomalyCount > 0
+                  ? 'No invoice-linked anomaly records; review unassigned payments above.'
+                  : anomaliesOnly
+                    ? 'No payment anomalies found.'
+                    : 'No billing records found.'
+              }}
+            </td>
           </tr>
           <template v-else>
             <tr
-              v-for="invoice in billingStore.invoices"
+              v-for="invoice in displayedInvoices"
               :key="invoice.id"
               :class="[
                 'align-top hover:bg-slate-50',
+                invoiceHasAnomaly(invoice) ? 'border-l-4 border-amber-500 bg-amber-50/70' : '',
                 printingInvoiceId && printingInvoiceId !== invoice.id ? 'invoice-row-print-hidden' : '',
               ]"
             >
@@ -222,11 +316,14 @@ async function printInvoice(invoiceId: string) {
                 {{ formatDate(invoice.dueDate) }}
               </td>
               <td class="px-4 py-3">
-                <ul v-if="invoice.payments?.length" class="space-y-2">
+                <ul v-if="visiblePayments(invoice).length" class="space-y-2">
                   <li
-                    v-for="payment in invoice.payments"
+                    v-for="payment in visiblePayments(invoice)"
                     :key="payment.id"
-                    class="min-w-44 border-b border-slate-100 pb-2 last:border-0"
+                    :class="[
+                      'min-w-44 border-b border-slate-100 pb-2 last:border-0',
+                      payment.is_anomaly ? 'rounded bg-amber-50 p-2' : '',
+                    ]"
                   >
                     <div class="flex items-center gap-1.5 font-semibold text-slate-700">
                       <CheckCircle2 v-if="payment.isSynced" class="h-3.5 w-3.5 text-emerald-600" />
@@ -237,6 +334,15 @@ async function printInvoice(invoiceId: string) {
                       {{ payment.paymentMethod.replace('_', ' ') }} ·
                       {{ payment.isSynced ? 'Confirmed' : 'Awaiting sync' }}
                     </div>
+                    <span
+                      v-if="payment.is_anomaly"
+                      :title="anomalyTooltip(payment)"
+                      :aria-label="`Payment anomaly: ${anomalyTooltip(payment)}`"
+                      class="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900"
+                    >
+                      <TriangleAlert class="h-3 w-3" />
+                      {{ payment.anomaly_details?.severity || 'Review' }} anomaly
+                    </span>
                     <a
                       v-if="payment.receiptUrl"
                       :href="payment.receiptUrl"

@@ -81,6 +81,19 @@ export enum PaymentMethod {
   BANK_TRANSFER = 'bank_transfer',
 }
 
+export type PaymentAnomalyType =
+  | 'OVERPAYMENT'
+  | 'DUPLICATE_TRANSACTION'
+  | 'UNLINKED_PAYMENT';
+
+export type PaymentAnomalySeverity = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface PaymentAnomalyDetails {
+  type: PaymentAnomalyType;
+  severity: PaymentAnomalySeverity;
+  reason: string;
+}
+
 @Entity('payments')
 export class Payment {
   @PrimaryGeneratedColumn('uuid')
@@ -89,8 +102,11 @@ export class Payment {
   @Column({ nullable: true })
   offlineReferenceId?: string;
 
-  @ManyToOne(() => Invoice, (invoice) => invoice.payments, { onDelete: 'CASCADE' })
-  invoice: Invoice;
+  @ManyToOne(() => Invoice, (invoice) => invoice.payments, {
+    nullable: true,
+    onDelete: 'CASCADE',
+  })
+  invoice?: Invoice;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount: number;
@@ -116,4 +132,8 @@ export class Payment {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  is_anomaly = false;
+
+  anomaly_details: PaymentAnomalyDetails | null = null;
 }

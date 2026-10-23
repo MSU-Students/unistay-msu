@@ -15,7 +15,7 @@
     "build:api": "npm --prefix api run build",
     "build:client": "npm --prefix client run build",
     "lint": "npm --prefix api run lint && npm --prefix client run lint",
-    "test": "npm --prefix api run test",
+    "test": "npm --prefix api run test && npm --prefix client run test",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",

@@ -14,7 +14,7 @@
     "start:prod": "node dist/main",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "jest",
+    "test": "vitest run",
     "typeorm": "typeorm-ts-node-commonjs"
   },
   "dependencies": {
@@ -51,6 +51,7 @@
     "@types/passport-jwt": "^4.0.1",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.9"
   }
 }
