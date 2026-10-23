@@ -49,14 +49,33 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function devLogin(email: string, role: UserRole = 'student', fullName?: string) {
-    const res = await apiClient.post('/auth/dev-login', {
-      email,
-      role,
-      fullName: fullName || (role === 'student' ? 'MSU Student Scholar' : 'MSU Housing Manager'),
-    });
-    const { accessToken, user: authUser } = res.data.data;
-    await setSession(accessToken, authUser);
-    return authUser;
+    try {
+      const res = await apiClient.post('/auth/dev-login', {
+        email,
+        role,
+        fullName: fullName || (role === 'student' ? 'MSU Student Scholar' : 'MSU Housing Manager'),
+      });
+      const { accessToken, user: authUser } = res.data.data;
+      await setSession(accessToken, authUser);
+      return authUser;
+    } catch (err) {
+      console.warn('[AuthStore] Backend API unreachable, starting offline dev session for role:', role);
+      const offlineUser: User = {
+        id: `offline-${role}-user`,
+        email,
+        fullName:
+          fullName ||
+          (role === 'university_admin'
+            ? 'Dr. Taratingan (Housing Admin)'
+            : role === 'property_manager'
+            ? 'Engr. Haron Lucman (Dorm Manager)'
+            : 'Amina Dimaporo (Student)'),
+        role,
+        isInstitutionalVerified: true,
+      };
+      await setSession(`offline-token-${role}`, offlineUser);
+      return offlineUser;
+    }
   }
 
   async function logout() {

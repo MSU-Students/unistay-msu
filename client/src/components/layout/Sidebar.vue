@@ -2,10 +2,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
+import { computed } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import {
   LayoutDashboard,
   Building2,
+  BarChart3,
+  FileText,
   ClipboardList,
   Receipt,
   Wrench,
@@ -13,13 +16,19 @@ import {
   Briefcase,
   ClipboardCheck,
 } from 'lucide-vue-next';
+import { useAuthStore } from '../../stores/auth';
 
 const route = useRoute();
 const authStore = useAuthStore();
 
 const navigation = computed(() => [
-  { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { name: 'Housing Directory', path: '/housing', icon: Building2 },
+  { name: 'Dashboard', path: '/', icon: LayoutDashboard, studentOnly: false, adminOnly: false },
+  { name: 'Housing Directory', path: '/housing', icon: Building2, studentOnly: false, adminOnly: false },
+  { name: 'Application Reports', path: '/admin/housing/application-reports', icon: BarChart3, studentOnly: false, adminOnly: true },
+  { name: 'Billing & Utilities', path: '/billing', icon: Receipt, studentOnly: false, adminOnly: false },
+  { name: 'Maintenance Desk', path: '/maintenance', icon: Wrench, studentOnly: false, adminOnly: false },
+  { name: 'Facility Bookings', path: '/facilities', icon: CalendarDays, studentOnly: false, adminOnly: false },
+  { name: 'Student Gig Board', path: '/gigs', icon: Briefcase, studentOnly: false, adminOnly: false },
   { name: 'Housing Application', path: '/housing/apply', icon: ClipboardList },
   ...(authStore.isManager
     ? [
@@ -30,11 +39,9 @@ const navigation = computed(() => [
         },
       ]
     : []),
-  { name: 'Billing & Utilities', path: '/billing', icon: Receipt },
-  { name: 'Maintenance Desk', path: '/maintenance', icon: Wrench },
-  { name: 'Facility Bookings', path: '/facilities', icon: CalendarDays },
-  { name: 'Student Gig Board', path: '/gigs', icon: Briefcase },
-]);
+].filter((item) =>
+  (!item.studentOnly || authStore.isStudent) && (!item.adminOnly || authStore.isAdmin),
+));
 </script>
 
 <template>

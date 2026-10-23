@@ -13,6 +13,7 @@ import {
   WifiOff,
   Database,
   ArrowUpRight,
+  BarChart3,
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
@@ -137,6 +138,28 @@ onMounted(async () => {
           </div>
           <div class="flex items-center text-xs font-semibold text-emerald-700 mt-4">
             <span>Manage billing</span>
+            <ArrowUpRight class="w-4 h-4 ml-1" />
+          </div>
+        </router-link>
+
+        <router-link
+          v-if="authStore.isAdmin"
+          to="/admin/housing/application-reports"
+          class="group bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-msu-maroon/30 transition-all flex flex-col justify-between"
+        >
+          <div>
+            <div class="w-10 h-10 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center mb-3">
+              <BarChart3 class="w-5 h-5" />
+            </div>
+            <h3 class="font-bold text-slate-900 group-hover:text-purple-700 transition-colors">
+              Application Reports & Monitoring
+            </h3>
+            <p class="text-xs text-slate-600 mt-1">
+              Admin application volume summary, workflow traceability, and compliance exceptions.
+            </p>
+          </div>
+          <div class="flex items-center text-xs font-semibold text-purple-700 mt-4">
+            <span>View reports</span>
             <ArrowUpRight class="w-4 h-4 ml-1" />
           </div>
         </router-link>

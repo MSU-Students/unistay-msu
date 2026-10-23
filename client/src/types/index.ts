@@ -63,6 +63,66 @@ export interface Application {
   status: ApplicationStatus;
   remarks?: string;
   createdAt: string;
+  updatedAt?: string;
+  statusHistory?: ApplicationStatusHistoryEntry[];
+  policyException?: boolean;
+  policyExceptionReason?: string | null;
+  escalated?: boolean;
+  escalationReason?: string | null;
+}
+
+export interface ApplicationStatusHistoryEntry {
+  status: ApplicationStatus;
+  changedAt: string;
+  changedBy: string;
+}
+
+export interface HousingApplicationReportFilters {
+  propertyId?: string;
+  status?: ApplicationStatus;
+  fromDate?: string;
+  toDate?: string;
+}
+
+export interface HousingApplicationReportItem {
+  id: string;
+  status: ApplicationStatus;
+  statusHistory: ApplicationStatusHistoryEntry[];
+  policyException: boolean;
+  policyExceptionReason?: string | null;
+  escalated: boolean;
+  escalationReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  applicant: {
+    id: string;
+    fullName: string;
+    studentIdNumber?: string;
+    college?: string;
+    course?: string;
+  };
+  property: {
+    id: string;
+    name: string;
+    address: string;
+  };
+  unit?: {
+    id: string;
+    roomNumber: string;
+  } | null;
+}
+
+export interface HousingApplicationReport {
+  summary: {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    cancelled: number;
+    policyExceptions: number;
+    escalated: number;
+  };
+  applications: HousingApplicationReportItem[];
 }
 
 export interface HousingApplicationDraft {
