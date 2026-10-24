@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, toRaw } from 'vue';
 import { isAxiosError } from 'axios';
-import { Invoice, Payment } from '../types';
+import { FinanceSummary, FinanceSummaryQuery, Invoice, Payment } from '../types';
 import apiClient from '../api/client';
 import { db } from '../db';
 import { syncEngine } from '../db/sync-engine';
@@ -35,6 +35,11 @@ export const useBillingStore = defineStore('billing', () => {
     } finally {
       loading.value = false;
     }
+  }
+
+  async function fetchFinanceSummary(filters: FinanceSummaryQuery) {
+    const res = await apiClient.get('/billing/admin/summary', { params: filters });
+    return res.data.data as FinanceSummary;
   }
 
   async function recordPayment(invoiceId: string, amount: number, paymentMethod: 'cash' | 'gcash' | 'bank_transfer') {
@@ -103,6 +108,7 @@ export const useBillingStore = defineStore('billing', () => {
     loading,
     loadError,
     fetchInvoices,
+    fetchFinanceSummary,
     recordPayment,
     calculateUtilitySplit,
   };

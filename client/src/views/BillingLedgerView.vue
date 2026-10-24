@@ -4,7 +4,9 @@ import AppLayout from '../components/layout/AppLayout.vue';
 import InvoiceLedger from '../components/billing/InvoiceLedger.vue';
 import { useBillingStore } from '../stores/billing';
 import { useNetworkStore } from '../stores/network';
-import { Invoice } from '../types';
+import { useAuthStore } from '../stores/auth';
+import { useHousingStore } from '../stores/housing';
+import { FinancePaymentStatus, FinanceSummary, Invoice } from '../types';
 import {
   Calculator,
   CreditCard,
@@ -20,6 +22,8 @@ interface UtilitySplitResult {
 
 const billingStore = useBillingStore();
 const networkStore = useNetworkStore();
+const authStore = useAuthStore();
+const housingStore = useHousingStore();
 
 const electricBill = ref(3600);
 const waterBill = ref(1200);
@@ -31,6 +35,13 @@ const paymentAmount = ref(0);
 const paymentMethod = ref<'cash' | 'gcash' | 'bank_transfer'>('gcash');
 const paymentFeedback = ref<string | null>(null);
 const paymentError = ref<string | null>(null);
+const financeSummary = ref<FinanceSummary | null>(null);
+const summaryLoading = ref(false);
+const summaryError = ref<string | null>(null);
+const summaryPropertyId = ref('');
+const summaryStartDate = ref('');
+const summaryEndDate = ref('');
+const summaryStatus = ref<FinancePaymentStatus>('all');
 
 const selectedInvoice = computed(() =>
   billingStore.invoices.find((invoice: Invoice) => invoice.id === selectedInvoiceId.value),
@@ -44,6 +55,10 @@ const selectedBalance = computed(() =>
 onMounted(() => {
   void billingStore.fetchInvoices();
   void calculateSplit();
+  if (authStore.isAdmin) {
+    void housingStore.fetchProperties();
+    void fetchFinanceSummary();
+  }
 });
 
 watch(selectedInvoiceId, () => {
@@ -99,6 +114,24 @@ function formatMoney(value: number | string) {
 function outstandingBalance(invoice: Invoice) {
   return Math.max(0, Number(invoice.totalAmount) - Number(invoice.paidAmount));
 }
+
+async function fetchFinanceSummary() {
+  summaryLoading.value = true;
+  summaryError.value = null;
+  try {
+    financeSummary.value = await billingStore.fetchFinanceSummary({
+      propertyId: summaryPropertyId.value || undefined,
+      startDate: summaryStartDate.value || undefined,
+      endDate: summaryEndDate.value || undefined,
+      status: summaryStatus.value,
+    });
+  } catch (error) {
+    financeSummary.value = null;
+    summaryError.value = error instanceof Error ? error.message : 'Unable to load the finance summary.';
+  } finally {
+    summaryLoading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -110,6 +143,70 @@ function outstandingBalance(invoice: Invoice) {
           Review monthly charges, due dates, payment history, and current balances.
         </p>
       </div>
+
+      <section v-if="authStore.isAdmin" class="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Financial activity summary</h2>
+            <p class="text-xs text-slate-600">Review collected payments and outstanding invoice balances across properties. Date ranges use payment dates for collections and invoice dates for balances.</p>
+          </div>
+          <button
+            @click="fetchFinanceSummary"
+            :disabled="summaryLoading"
+            class="rounded-lg bg-msu-maroon px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
+          >
+            {{ summaryLoading ? 'Loading...' : 'Apply filters' }}
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+          <label class="font-medium text-slate-600">
+            <span class="mb-1 block">Property</span>
+            <select v-model="summaryPropertyId" class="w-full rounded border border-slate-300 bg-white px-3 py-2">
+              <option value="">All properties</option>
+              <option v-for="property in housingStore.properties" :key="property.id" :value="property.id">
+                {{ property.name }}
+              </option>
+            </select>
+          </label>
+          <label class="font-medium text-slate-600">
+            <span class="mb-1 block">From date</span>
+            <input v-model="summaryStartDate" type="date" class="w-full rounded border border-slate-300 px-3 py-2" />
+          </label>
+          <label class="font-medium text-slate-600">
+            <span class="mb-1 block">Through date</span>
+            <input v-model="summaryEndDate" type="date" :min="summaryStartDate || undefined" class="w-full rounded border border-slate-300 px-3 py-2" />
+          </label>
+          <label class="font-medium text-slate-600">
+            <span class="mb-1 block">Payment status</span>
+            <select v-model="summaryStatus" class="w-full rounded border border-slate-300 bg-white px-3 py-2">
+              <option value="all">All statuses</option>
+              <option value="unpaid">Unpaid</option>
+              <option value="partially_paid">Partially paid</option>
+              <option value="paid">Paid</option>
+              <option value="overdue">Overdue</option>
+            </select>
+          </label>
+        </div>
+
+        <p v-if="summaryError" role="alert" class="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+          {{ summaryError }}
+        </p>
+        <div v-if="financeSummary" class="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-live="polite">
+          <article class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+            <p class="text-xs font-semibold uppercase text-emerald-800">Total collected</p>
+            <p class="mt-1 text-2xl font-extrabold text-emerald-900">₱{{ formatMoney(financeSummary.totalCollected) }}</p>
+          </article>
+          <article class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p class="text-xs font-semibold uppercase text-amber-800">Outstanding</p>
+            <p class="mt-1 text-2xl font-extrabold text-amber-900">₱{{ formatMoney(financeSummary.totalOutstanding) }}</p>
+          </article>
+          <article class="rounded-lg border border-red-200 bg-red-50 p-4">
+            <p class="text-xs font-semibold uppercase text-red-800">Overdue</p>
+            <p class="mt-1 text-2xl font-extrabold text-red-900">₱{{ formatMoney(financeSummary.totalOverdue) }}</p>
+          </article>
+        </div>
+      </section>
 
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 print-hidden">
         <section class="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

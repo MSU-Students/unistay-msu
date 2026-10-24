@@ -151,14 +151,20 @@ const updateSlots = (prop: any, change: number) => {
                 </button>
 
                 <!-- Apply Now Button (Disabled if Fully Booked) -->
-                <button
-                  :disabled="(prop.availableSlots ?? 5) === 0"
-                  @click="housingStore.submitApplication(prop.id)"
-                  :class="(prop.availableSlots ?? 5) === 0 ? 'bg-slate-300 cursor-not-allowed' : 'bg-msu-maroon hover:bg-msu-darkmaroon'"
-                  class="text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                <span
+                  v-if="(prop.availableSlots ?? 5) === 0"
+                  aria-disabled="true"
+                  class="cursor-not-allowed rounded-lg bg-slate-300 px-3 py-1.5 text-xs font-semibold text-white"
                 >
-                  {{ (prop.availableSlots ?? 5) === 0 ? 'Full' : 'Apply Now' }}
-                </button>
+                  Full
+                </span>
+                <router-link
+                  v-else
+                  :to="{ name: 'housing-application', query: { propertyId: prop.id } }"
+                  class="rounded-lg bg-msu-maroon px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-msu-darkmaroon"
+                >
+                  Apply Now
+                </router-link>
               </div>
             </div>
           </div>
