@@ -96,7 +96,17 @@ export interface Invoice {
 
 export type TicketCategory = 'plumbing' | 'electrical' | 'sanitation' | 'carpentry' | 'other';
 export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
-export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+export type TicketStatus = 'open' | 'in_progress' | 'waiting_on_vendor' | 'resolved' | 'closed';
+
+export interface TicketActivity {
+  id: string;
+  status?: TicketStatus;
+  assignedToName?: string;
+  note?: string;
+  resolutionNotes?: string;
+  actor: User;
+  createdAt: string;
+}
 
 export interface MaintenanceTicket {
   id: string;
@@ -109,7 +119,9 @@ export interface MaintenanceTicket {
   property: Property;
   unit?: Unit;
   reporter: User;
+  assignedToName?: string;
   resolutionNotes?: string;
+  activities?: TicketActivity[];
   createdAt: string;
 }
 

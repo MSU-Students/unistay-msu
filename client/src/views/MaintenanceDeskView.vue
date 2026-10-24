@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, reactive, computed } from 'vue';
 import AppLayout from '../components/layout/AppLayout.vue';
 import { useMaintenanceStore } from '../stores/maintenance';
-import { Wrench, AlertCircle, Plus, Camera, CheckCircle2 } from 'lucide-vue-next';
+import { useAuthStore } from '../stores/auth';
+import { TicketStatus } from '../types';
+import { AlertCircle, Plus } from 'lucide-vue-next';
 
 const maintStore = useMaintenanceStore();
+const authStore = useAuthStore();
 
 const showCreateModal = ref(false);
 const title = ref('');
@@ -13,9 +16,31 @@ const category = ref('plumbing');
 const priority = ref('medium');
 const propertyId = ref('');
 const message = ref<string | null>(null);
+const messageIsError = ref(false);
+const isManager = computed(
+  () => authStore.user?.role === 'property_manager' || authStore.user?.role === 'university_admin',
+);
+const ticketDrafts = reactive<Record<string, {
+  status: TicketStatus;
+  assignedToName: string;
+  note: string;
+  resolutionNotes: string;
+}>>({});
 
-onMounted(() => {
-  maintStore.fetchTickets();
+function initializeTicketDrafts() {
+  for (const ticket of maintStore.tickets) {
+    ticketDrafts[ticket.id] = {
+      status: ticket.status,
+      assignedToName: ticket.assignedToName || '',
+      note: '',
+      resolutionNotes: ticket.resolutionNotes || '',
+    };
+  }
+}
+
+onMounted(async () => {
+  await maintStore.fetchTickets();
+  initializeTicketDrafts();
   maintStore.fetchOutages();
 });
 
@@ -34,6 +59,28 @@ async function handleSubmitTicket() {
   message.value = res.online
     ? 'Maintenance ticket submitted successfully.'
     : res.message || 'Ticket saved offline in Dexie queue.';
+  await maintStore.fetchTickets();
+  initializeTicketDrafts();
+}
+
+async function saveTicketUpdate(ticketId: string) {
+  const draft = ticketDrafts[ticketId];
+  if (!draft) return;
+
+  try {
+    await maintStore.updateTicket(ticketId, {
+      status: draft.status,
+      assignedToName: draft.assignedToName,
+      note: draft.note,
+      resolutionNotes: draft.resolutionNotes,
+    });
+    initializeTicketDrafts();
+    message.value = 'Ticket updated successfully.';
+    messageIsError.value = false;
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : 'Unable to update the ticket.';
+    messageIsError.value = true;
+  }
 }
 </script>
 
@@ -55,7 +102,13 @@ async function handleSubmitTicket() {
         </button>
       </div>
 
-      <div v-if="message" class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-lg text-xs flex items-center justify-between">
+      <div
+        v-if="message"
+        :class="messageIsError
+          ? 'bg-rose-50 border-rose-200 text-rose-800'
+          : 'bg-emerald-50 border-emerald-200 text-emerald-800'"
+        class="border p-3 rounded-lg text-xs flex items-center justify-between"
+      >
         <span>{{ message }}</span>
         <button @click="message = null" class="font-bold underline">Dismiss</button>
       </div>
@@ -145,8 +198,9 @@ async function handleSubmitTicket() {
               </span>
               <span
                 :class="[
-                  ticket.status === 'resolved' ? 'bg-emerald-100 text-emerald-800' :
-                  ticket.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800',
+                  ticket.status === 'resolved' || ticket.status === 'closed' ? 'bg-emerald-100 text-emerald-800' :
+                  ticket.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                  ticket.status === 'waiting_on_vendor' ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800',
                   'text-[10px] font-bold uppercase px-2 py-0.5 rounded-full'
                 ]"
               >
@@ -155,12 +209,92 @@ async function handleSubmitTicket() {
             </div>
             <h3 class="font-bold text-slate-900 text-sm mt-2">{{ ticket.title }}</h3>
             <p class="text-xs text-slate-600 mt-1 line-clamp-3">{{ ticket.description }}</p>
+            <p v-if="ticket.assignedToName" class="mt-2 text-xs text-slate-600">
+              Assigned to: <strong class="text-slate-800">{{ ticket.assignedToName }}</strong>
+            </p>
           </div>
 
           <div class="text-[11px] text-slate-400 pt-2 border-t border-slate-100 flex items-center justify-between">
             <span>Priority: <strong class="uppercase text-slate-700">{{ ticket.priority }}</strong></span>
             <span>{{ new Date(ticket.createdAt).toLocaleDateString() }}</span>
           </div>
+
+          <div v-if="isManager && ticketDrafts[ticket.id]" class="space-y-3 border-t border-slate-100 pt-3">
+            <label class="block text-[11px] font-medium text-slate-700">
+              Status
+              <select
+                v-model="ticketDrafts[ticket.id].status"
+                class="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs"
+              >
+                <option value="open">Open</option>
+                <option value="in_progress">In progress</option>
+                <option value="waiting_on_vendor">Waiting on vendor</option>
+                <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+              </select>
+            </label>
+            <label class="block text-[11px] font-medium text-slate-700">
+              Assigned vendor or technician
+              <input
+                v-model="ticketDrafts[ticket.id].assignedToName"
+                placeholder="Name"
+                class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-xs"
+              />
+            </label>
+            <label class="block text-[11px] font-medium text-slate-700">
+              Add note
+              <textarea
+                v-model="ticketDrafts[ticket.id].note"
+                rows="2"
+                placeholder="Progress update or internal note"
+                class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-xs"
+              ></textarea>
+            </label>
+            <label class="block text-[11px] font-medium text-slate-700">
+              Resolution details
+              <textarea
+                v-model="ticketDrafts[ticket.id].resolutionNotes"
+                rows="2"
+                placeholder="How was the issue resolved?"
+                class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-xs"
+              ></textarea>
+            </label>
+            <button
+              @click="saveTicketUpdate(ticket.id)"
+              class="w-full rounded-lg bg-msu-maroon px-3 py-2 text-xs font-semibold text-white hover:bg-msu-darkmaroon"
+            >
+              Save ticket update
+            </button>
+          </div>
+
+          <div v-if="ticket.resolutionNotes" class="rounded-lg bg-emerald-50 p-3 text-xs text-emerald-900">
+            <p class="font-semibold">Resolution details</p>
+            <p class="mt-1">{{ ticket.resolutionNotes }}</p>
+          </div>
+
+          <details v-if="ticket.activities?.length" class="border-t border-slate-100 pt-3">
+            <summary class="cursor-pointer text-xs font-semibold text-slate-700">
+              Ticket history ({{ ticket.activities.length }})
+            </summary>
+            <ol class="mt-2 space-y-2">
+              <li
+                v-for="activity in ticket.activities"
+                :key="activity.id"
+                class="border-l-2 border-slate-200 pl-2 text-[11px] text-slate-600"
+              >
+                <p class="font-medium text-slate-800">
+                  {{ activity.actor?.fullName || 'User' }}
+                  <span class="font-normal text-slate-400">
+                    · {{ new Date(activity.createdAt).toLocaleString() }}
+                  </span>
+                </p>
+                <p v-if="activity.status">Status: {{ activity.status.replaceAll('_', ' ') }}</p>
+                <p v-if="activity.assignedToName">Assigned to: {{ activity.assignedToName }}</p>
+                <p v-if="activity.note">{{ activity.note }}</p>
+                <p v-if="activity.resolutionNotes">Resolution: {{ activity.resolutionNotes }}</p>
+              </li>
+            </ol>
+          </details>
         </div>
       </div>
     </div>

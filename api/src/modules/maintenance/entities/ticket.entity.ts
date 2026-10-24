@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToMany,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Property, Unit } from '../../housing/entities/property.entity';
@@ -19,6 +20,7 @@ export enum TicketPriority {
 export enum TicketStatus {
   OPEN = 'open',
   IN_PROGRESS = 'in_progress',
+  WAITING_ON_VENDOR = 'waiting_on_vendor',
   RESOLVED = 'resolved',
   CLOSED = 'closed',
 }
@@ -75,8 +77,14 @@ export class MaintenanceTicket {
   @ManyToOne(() => Unit, { nullable: true, eager: true })
   unit?: Unit;
 
+  @Column({ nullable: true })
+  assignedToName?: string;
+
   @Column({ type: 'text', nullable: true })
   resolutionNotes?: string;
+
+  @OneToMany(() => TicketActivity, (activity) => activity.ticket)
+  activities: TicketActivity[];
 
   @Column({ type: 'timestamp', nullable: true })
   resolvedAt?: Date;
@@ -86,6 +94,35 @@ export class MaintenanceTicket {
 
   @UpdateDateColumn()
   updatedAt: Date;
+}
+
+@Entity('maintenance_ticket_activities')
+export class TicketActivity {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @ManyToOne(() => MaintenanceTicket, (ticket) => ticket.activities, {
+    onDelete: 'CASCADE',
+  })
+  ticket: MaintenanceTicket;
+
+  @ManyToOne(() => User, { eager: true })
+  actor: User;
+
+  @Column({ type: 'enum', enum: TicketStatus, nullable: true })
+  status?: TicketStatus;
+
+  @Column({ nullable: true })
+  assignedToName?: string;
+
+  @Column({ type: 'text', nullable: true })
+  note?: string;
+
+  @Column({ type: 'text', nullable: true })
+  resolutionNotes?: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
 }
 
 @Entity('outage_reports')

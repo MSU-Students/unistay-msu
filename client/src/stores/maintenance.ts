@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { MaintenanceTicket, OutageReport } from '../types';
+import { MaintenanceTicket, OutageReport, TicketStatus } from '../types';
 import apiClient from '../api/client';
 import { db } from '../db';
 import { syncEngine } from '../db/sync-engine';
@@ -61,6 +61,20 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
     };
   }
 
+  async function updateTicket(
+    id: string,
+    data: {
+      status?: TicketStatus;
+      assignedToName?: string;
+      note?: string;
+      resolutionNotes?: string;
+    },
+  ) {
+    const res = await apiClient.patch(`/maintenance/tickets/${id}`, data);
+    await fetchTickets();
+    return res.data.data as MaintenanceTicket;
+  }
+
   return {
     tickets,
     outages,
@@ -68,5 +82,6 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
     fetchTickets,
     fetchOutages,
     createTicket,
+    updateTicket,
   };
 });

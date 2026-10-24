@@ -45,6 +45,28 @@ export class UpdateTicketStatusDto {
   resolutionNotes?: string;
 }
 
+export class UpdateMaintenanceTicketDto {
+  @ApiPropertyOptional({ enum: TicketStatus })
+  @IsOptional()
+  @IsEnum(TicketStatus)
+  status?: TicketStatus;
+
+  @ApiPropertyOptional({ description: 'Name of the assigned vendor or technician' })
+  @IsOptional()
+  @IsString()
+  assignedToName?: string;
+
+  @ApiPropertyOptional({ description: 'An update to add to the ticket history' })
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @ApiPropertyOptional({ description: 'Details of the completed resolution' })
+  @IsOptional()
+  @IsString()
+  resolutionNotes?: string;
+}
+
 export class CreateOutageReportDto {
   @ApiProperty({ example: 'Water' })
   @IsString()

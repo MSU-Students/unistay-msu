@@ -9,7 +9,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { MaintenanceService } from './maintenance.service';
-import { CreateOutageReportDto, CreateTicketDto, UpdateTicketStatusDto } from './dto/maintenance.dto';
+import {
+  CreateOutageReportDto,
+  CreateTicketDto,
+  UpdateMaintenanceTicketDto,
+  UpdateTicketStatusDto,
+} from './dto/maintenance.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -55,8 +60,20 @@ export class MaintenanceController {
   async updateTicketStatus(
     @Param('id') id: string,
     @Body() dto: UpdateTicketStatusDto,
+    @CurrentUser() user: User,
   ) {
-    return this.maintenanceService.updateTicketStatus(id, dto);
+    return this.maintenanceService.updateTicketStatus(id, dto, user);
+  }
+
+  @Patch('tickets/:id')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Assign or update a ticket and add it to the activity history' })
+  async updateTicket(
+    @Param('id') id: string,
+    @Body() dto: UpdateMaintenanceTicketDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.maintenanceService.updateTicket(id, dto, user);
   }
 
   @Public()

@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { MaintenanceTicket, OutageReport, TicketStatus } from './entities/ticket.entity';
-import { CreateOutageReportDto, CreateTicketDto, UpdateTicketStatusDto } from './dto/maintenance.dto';
+import { MaintenanceTicket, OutageReport, TicketActivity, TicketStatus } from './entities/ticket.entity';
+import {
+  CreateOutageReportDto,
+  CreateTicketDto,
+  UpdateMaintenanceTicketDto,
+  UpdateTicketStatusDto,
+} from './dto/maintenance.dto';
 import { User } from '../users/entities/user.entity';
 import { HousingService } from '../housing/housing.service';
 
@@ -21,7 +26,10 @@ export class MaintenanceService {
       .leftJoinAndSelect('ticket.reporter', 'reporter')
       .leftJoinAndSelect('ticket.property', 'property')
       .leftJoinAndSelect('ticket.unit', 'unit')
-      .orderBy('ticket.createdAt', 'DESC');
+      .leftJoinAndSelect('ticket.activities', 'activities')
+      .leftJoinAndSelect('activities.actor', 'activityActor')
+      .orderBy('ticket.createdAt', 'DESC')
+      .addOrderBy('activities.createdAt', 'ASC');
 
     if (reporterId) {
       qb.andWhere('reporter.id = :reporterId', { reporterId });
@@ -33,11 +41,14 @@ export class MaintenanceService {
   async findTicketById(id: string): Promise<MaintenanceTicket> {
     const ticket = await this.ticketRepo.findOne({
       where: { id },
-      relations: ['reporter', 'property', 'unit'],
+      relations: ['reporter', 'property', 'unit', 'activities', 'activities.actor'],
     });
     if (!ticket) {
       throw new NotFoundException(`Ticket with ID ${id} not found`);
     }
+    ticket.activities?.sort(
+      (first, second) => first.createdAt.getTime() - second.createdAt.getTime(),
+    );
     return ticket;
   }
 
@@ -53,19 +64,68 @@ export class MaintenanceService {
       property,
       status: TicketStatus.OPEN,
     });
-    return this.ticketRepo.save(ticket);
+    return this.ticketRepo.manager.transaction(async (manager) => {
+      const savedTicket = await manager.save(ticket);
+      await manager.save(TicketActivity, {
+        ticket: savedTicket,
+        actor: reporter,
+        note: 'Ticket submitted',
+        status: TicketStatus.OPEN,
+      });
+      return savedTicket;
+    });
   }
 
-  async updateTicketStatus(id: string, dto: UpdateTicketStatusDto): Promise<MaintenanceTicket> {
+  async updateTicketStatus(
+    id: string,
+    dto: UpdateTicketStatusDto,
+    actor: User,
+  ): Promise<MaintenanceTicket> {
+    return this.updateTicket(id, dto, actor);
+  }
+
+  async updateTicket(
+    id: string,
+    dto: UpdateMaintenanceTicketDto,
+    actor: User,
+  ): Promise<MaintenanceTicket> {
     const ticket = await this.findTicketById(id);
-    ticket.status = dto.status;
-    if (dto.resolutionNotes) {
+    const changed = dto.status !== undefined
+      || dto.assignedToName !== undefined
+      || dto.note !== undefined
+      || dto.resolutionNotes !== undefined;
+    if (!changed) {
+      throw new BadRequestException('At least one ticket field must be updated.');
+    }
+
+    if (dto.status !== undefined) {
+      ticket.status = dto.status;
+    }
+    if (dto.assignedToName !== undefined) {
+      ticket.assignedToName = dto.assignedToName.trim() || undefined;
+    }
+    if (dto.resolutionNotes !== undefined) {
       ticket.resolutionNotes = dto.resolutionNotes;
     }
-    if (dto.status === TicketStatus.RESOLVED || dto.status === TicketStatus.CLOSED) {
-      ticket.resolvedAt = new Date();
+    if (
+      dto.status === TicketStatus.RESOLVED
+      || dto.status === TicketStatus.CLOSED
+    ) {
+      ticket.resolvedAt = ticket.resolvedAt || new Date();
     }
-    return this.ticketRepo.save(ticket);
+
+    await this.ticketRepo.manager.transaction(async (manager) => {
+      await manager.save(ticket);
+      await manager.save(TicketActivity, {
+        ticket,
+        actor,
+        status: ticket.status,
+        assignedToName: ticket.assignedToName,
+        note: dto.note,
+        resolutionNotes: dto.resolutionNotes,
+      });
+    });
+    return this.findTicketById(id);
   }
 
   // Outage status tracking
