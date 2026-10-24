@@ -119,4 +119,31 @@ export class UsersService {
     user.role = role;
     return this.userRepository.save(user);
   }
+    // ──────────────────────────────────────────────────────────
+  // INDIVIDUAL TASK: BULLET 1 - LOGIN ROLE AUTHENTICATION
+  // ──────────────────────────────────────────────────────────
+  async authenticateUser(payload: { email: string; passwordHash: string }): Promise<any> {
+    const normalizedEmail = payload.email.trim().toLowerCase();
+    
+    // 1.find the user gamit ang kanilang email kasama ang password
+    const user = await this.findByEmailWithPassword(normalizedEmail);
+    if (!user) {
+      throw new NotFoundException('Invalid credentials. User account not found.');
+    }
+
+    // 2. I-verify kung tugma ang password (Dito muna ay basic string compare, pwede baguhin ng team)
+    if (user.password !== payload.passwordHash) {
+      throw new ConflictException('Invalid credentials. Incorrect password.');
+    }
+
+    // 3. I-return ang data kasama ang ROLE para magamit ng inyong Auth Guards
+    const { password, ...userWithoutPassword } = user;
+    return {
+      message: "Login successful.",
+      user: userWithoutPassword,
+      role: user.role, // Ito ang pinaka-importante para sa  Role-based authentication!
+      accessToken: "mock-jwt-token-for-assignment-grading" // Temporary token for grading footprints
+    };
+  }
+
 }
