@@ -3,11 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "description": "UniStay MSU: A Unified Institutional & Private Housing Management Information System",
-  "workspaces": [
-    "api",
-    "client"
-  ],
   "scripts": {
+    "postinstall": "npm --prefix api install --ignore-scripts && npm --prefix client install",
     "dev": "concurrently -n \"API,CLIENT\" -c \"cyan,magenta\" \"npm run dev:api\" \"npm run dev:client\"",
     "dev:api": "npm --prefix api run start:dev",
     "dev:client": "npm --prefix client run dev",
@@ -16,13 +13,14 @@
     "build:client": "npm --prefix client run build",
     "lint": "npm --prefix api run lint && npm --prefix client run lint",
     "test": "npm --prefix api run test",
-    "docker:up": "docker compose up -d",
+    "docker:up": "docker compose up -d postgres minio minio-create-bucket",
+    "docker:all": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "typecheck": "npm --prefix api run typecheck && npm --prefix client run typecheck"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.2.5"
   },
   "keywords": [
     "unistay",

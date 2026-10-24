@@ -1,19 +1,23 @@
 FROM node:22-alpine AS builder
 
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
 
-COPY . .
+COPY api/package*.json ./
+RUN npm ci --ignore-scripts
+
+COPY api/ ./
 RUN npm run build
 
 FROM node:22-alpine AS runner
 
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
+ENV NODE_ENV=production
+
+COPY api/package*.json ./
+RUN npm ci --omit=dev --ignore-scripts
 
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
-CMD ["node", "dist/main"]
+
+CMD ["node", "dist/main.js"]
