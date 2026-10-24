@@ -1,12 +1,15 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import DashboardView from '../views/DashboardView.vue';
 import HousingDirectoryView from '../views/HousingDirectoryView.vue';
+import HousingApplicationView from '../views/HousingApplicationView.vue';
 import BillingLedgerView from '../views/BillingLedgerView.vue';
 import MaintenanceDeskView from '../views/MaintenanceDeskView.vue';
 import FacilityBookingView from '../views/FacilityBookingView.vue';
 import GigBoardView from '../views/GigBoardView.vue';
 import LoginView from '../views/LoginView.vue';
+import RegisterView from '../views/RegisterView.vue';
 import AuthCallbackView from '../views/AuthCallbackView.vue';
+import ApplicationsReviewView from '../views/ApplicationsReviewView.vue';
 import { useAuthStore } from '../stores/auth';
 
 const routes: RouteRecordRaw[] = [
@@ -21,6 +24,22 @@ const routes: RouteRecordRaw[] = [
     name: 'housing',
     component: HousingDirectoryView,
     meta: { requiresAuth: false, title: 'Dormitory & Housing Directory' },
+  },
+  {
+    path: '/housing/apply',
+    name: 'housing-application',
+    component: HousingApplicationView,
+    meta: { requiresAuth: true, studentOnly: true, title: 'Housing Application' },
+  },
+  {
+    path: '/applications/review',
+    name: 'applications-review',
+    component: ApplicationsReviewView,
+    meta: {
+      requiresAuth: true,
+      requiresManager: true,
+      title: 'Applications Review',
+    },
   },
   {
     path: '/billing',
@@ -53,6 +72,12 @@ const routes: RouteRecordRaw[] = [
     meta: { guestOnly: true, title: 'Institutional Login' },
   },
   {
+    path: '/register',
+    name: 'register',
+    component: RegisterView,
+    meta: { guestOnly: true, title: 'Student Self-Registration' },
+  },
+  {
     path: '/auth/callback',
     name: 'auth-callback',
     component: AuthCallbackView,
@@ -65,6 +90,7 @@ const router = createRouter({
   routes,
 });
 
+
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
   await authStore.restoreOfflineSession();
@@ -75,9 +101,12 @@ router.beforeEach(async (to, from, next) => {
     next({ name: 'login', query: { redirect: to.fullPath } });
   } else if (to.meta.guestOnly && authStore.isAuthenticated) {
     next({ name: 'dashboard' });
+  } else if ((to.meta.requiresManager && !authStore.isManager) || !(to.meta.studentOnly && !authStore.isStudent)) {
+    next({ name: 'dashboard' });
   } else {
     next();
   }
 });
+
 
 export default router;

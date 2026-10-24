@@ -1,52 +1,40 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
 
 @Injectable()
-export class StorageService implements OnModuleInit {
+export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private minioClient: Minio.Client;
   private bucketName: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.bucketName = this.configService.get<string>('storage.bucketName', 'unistay-media');
+    const storageConfig = this.configService.get('storage');
+    this.bucketName = storageConfig?.bucketName || 'unistay-media';
+
+    this.minioClient = new Minio.Client({
+      endPoint: storageConfig?.endPoint || 'localhost',
+      port: storageConfig?.port || 9000,
+      useSSL: storageConfig?.useSSL || false,
+      accessKey: storageConfig?.accessKey || 'unistay_admin',
+      secretKey: storageConfig?.secretKey || 'unistay_minio_secret_2026',
+    });
   }
 
-  onModuleInit() {
+  async uploadFile(fileName: string, buffer: Buffer, mimeType: string): Promise<string> {
     try {
-      this.minioClient = new Minio.Client({
-        endPoint: this.configService.get<string>('storage.endPoint', 'localhost'),
-        port: this.configService.get<number>('storage.port', 9000),
-        useSSL: this.configService.get<boolean>('storage.useSSL', false),
-        accessKey: this.configService.get<string>('storage.accessKey', 'unistay_admin'),
-        secretKey: this.configService.get<string>('storage.secretKey', 'unistay_minio_secret_2026'),
+      await this.minioClient.putObject(this.bucketName, fileName, buffer, buffer.length, {
+        'Content-Type': mimeType,
       });
-      this.logger.log(`MinIO Storage Client initialized for bucket: ${this.bucketName}`);
-    } catch (err: any) {
-      this.logger.warn(`MinIO Storage Client initialization postponed or failed: ${err?.message || err}`);
+      return `/${this.bucketName}/${fileName}`;
+    } catch (error) {
+      this.logger.error(`Error uploading file ${fileName}: ${(error as Error).message}`);
+      throw error;
     }
   }
 
-  async uploadFile(
-    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
-    folder = 'uploads',
-  ): Promise<string> {
-    const timestamp = Date.now();
-    const cleanFileName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const objectName = `${folder}/${timestamp}-${cleanFileName}`;
-
-    await this.minioClient.putObject(
-      this.bucketName,
-      objectName,
-      file.buffer,
-      file.size,
-      { 'Content-Type': file.mimetype },
-    );
-
-    return `/${this.bucketName}/${objectName}`;
-  }
-
-  async getPresignedUrl(objectName: string, expirySeconds = 24 * 3600): Promise<string> {
-    return this.minioClient.presignedGetObject(this.bucketName, objectName, expirySeconds);
+  getClient(): Minio.Client {
+    return this.minioClient;
   }
 }
+

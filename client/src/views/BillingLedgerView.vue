@@ -1,58 +1,135 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import AppLayout from '../components/layout/AppLayout.vue';
+import InvoiceLedger from '../components/billing/InvoiceLedger.vue';
 import { useBillingStore } from '../stores/billing';
 import { useNetworkStore } from '../stores/network';
+import { useAuthStore } from '../stores/auth';
+import { useHousingStore } from '../stores/housing';
+import { FinancePaymentStatus, FinanceSummary, Invoice } from '../types';
 import {
-  Receipt,
   Calculator,
   CreditCard,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  Zap,
   Droplet,
+  Zap,
 } from 'lucide-vue-next';
+
+interface UtilitySplitResult {
+  electricShare: number;
+  waterShare: number;
+  totalUtilityShare: number;
+}
 
 const billingStore = useBillingStore();
 const networkStore = useNetworkStore();
+const authStore = useAuthStore();
+const housingStore = useHousingStore();
 
-// Utility Calculator state
 const electricBill = ref(3600);
 const waterBill = ref(1200);
 const occupants = ref(8);
-const splitResult = ref<any>(null);
-
-// Payment modal state
-const selectedInvoiceId = ref<string>('');
-const paymentAmount = ref<number>(0);
+const splitResult = ref<UtilitySplitResult | null>(null);
+const splitError = ref<string | null>(null);
+const selectedInvoiceId = ref('');
+const paymentAmount = ref(0);
 const paymentMethod = ref<'cash' | 'gcash' | 'bank_transfer'>('gcash');
 const paymentFeedback = ref<string | null>(null);
+const paymentError = ref<string | null>(null);
+const financeSummary = ref<FinanceSummary | null>(null);
+const summaryLoading = ref(false);
+const summaryError = ref<string | null>(null);
+const summaryPropertyId = ref('');
+const summaryStartDate = ref('');
+const summaryEndDate = ref('');
+const summaryStatus = ref<FinancePaymentStatus>('all');
+
+const selectedInvoice = computed(() =>
+  billingStore.invoices.find((invoice: Invoice) => invoice.id === selectedInvoiceId.value),
+);
+const selectedBalance = computed(() =>
+  selectedInvoice.value
+    ? Math.max(0, Number(selectedInvoice.value.totalAmount) - Number(selectedInvoice.value.paidAmount))
+    : 0,
+);
 
 onMounted(() => {
-  billingStore.fetchInvoices();
-  calculateSplit();
+  void billingStore.fetchInvoices();
+  void calculateSplit();
+  if (authStore.isAdmin) {
+    void housingStore.fetchProperties();
+    void fetchFinanceSummary();
+  }
+});
+
+watch(selectedInvoiceId, () => {
+  paymentAmount.value = selectedBalance.value;
 });
 
 async function calculateSplit() {
-  splitResult.value = await billingStore.calculateUtilitySplit(
-    electricBill.value,
-    waterBill.value,
-    occupants.value,
-  );
+  splitError.value = null;
+  try {
+    splitResult.value = await billingStore.calculateUtilitySplit(
+      electricBill.value,
+      waterBill.value,
+      occupants.value,
+    );
+  } catch (error) {
+    splitResult.value = null;
+    splitError.value =
+      error instanceof Error ? error.message : 'Unable to calculate the utility split.';
+  }
 }
 
 async function handlePayment() {
-  if (!selectedInvoiceId.value || paymentAmount.value <= 0) return;
-  const result = await billingStore.recordPayment(
-    selectedInvoiceId.value,
-    paymentAmount.value,
-    paymentMethod.value,
-  );
-  if (result.online) {
-    paymentFeedback.value = 'Payment recorded and confirmed on server!';
-  } else {
-    paymentFeedback.value = result.message || 'Payment queued offline in Dexie.js';
+  paymentFeedback.value = null;
+  paymentError.value = null;
+
+  if (!selectedInvoiceId.value || paymentAmount.value <= 0 || paymentAmount.value > selectedBalance.value) {
+    paymentError.value = 'Choose an invoice and enter an amount no greater than its outstanding balance.';
+    return;
+  }
+
+  try {
+    const result = await billingStore.recordPayment(
+      selectedInvoiceId.value,
+      paymentAmount.value,
+      paymentMethod.value,
+    );
+    paymentFeedback.value = result.online
+      ? 'Payment recorded and confirmed on server.'
+      : result.message || 'Payment queued offline and will synchronize when reconnected.';
+    paymentAmount.value = selectedBalance.value;
+  } catch (error) {
+    paymentError.value = error instanceof Error ? error.message : 'Unable to record payment.';
+  }
+}
+
+function formatMoney(value: number | string) {
+  return Number(value).toLocaleString('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function outstandingBalance(invoice: Invoice) {
+  return Math.max(0, Number(invoice.totalAmount) - Number(invoice.paidAmount));
+}
+
+async function fetchFinanceSummary() {
+  summaryLoading.value = true;
+  summaryError.value = null;
+  try {
+    financeSummary.value = await billingStore.fetchFinanceSummary({
+      propertyId: summaryPropertyId.value || undefined,
+      startDate: summaryStartDate.value || undefined,
+      endDate: summaryEndDate.value || undefined,
+      status: summaryStatus.value,
+    });
+  } catch (error) {
+    financeSummary.value = null;
+    summaryError.value = error instanceof Error ? error.message : 'Unable to load the finance summary.';
+  } finally {
+    summaryLoading.value = false;
   }
 }
 </script>
@@ -60,175 +137,161 @@ async function handlePayment() {
 <template>
   <AppLayout>
     <div class="space-y-8">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900">Billing Ledger & Utility Splitting</h1>
-        <p class="text-xs text-slate-600">Transparent billing history, shared meter calculation, and offline-resilient payment logging.</p>
+      <div class="print-hidden">
+        <h1 class="text-2xl font-bold text-slate-900">Rent & Payment Records</h1>
+        <p class="text-xs text-slate-600">
+          Review monthly charges, due dates, payment history, and current balances.
+        </p>
       </div>
 
-      <!-- Splitter Tool & Quick Demo -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Utility Calculator -->
-        <div class="lg:col-span-1 bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <div class="flex items-center space-x-2 text-slate-800 font-bold text-sm border-b pb-2">
-            <Calculator class="w-4 h-4 text-msu-maroon" />
-            <span>Shared Utility Splitter</span>
+      <section v-if="authStore.isAdmin" class="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Financial activity summary</h2>
+            <p class="text-xs text-slate-600">Review collected payments and outstanding invoice balances across properties. Date ranges use payment dates for collections and invoice dates for balances.</p>
           </div>
-
-          <div class="space-y-3 text-xs">
-            <div>
-              <label class="font-medium text-slate-600 flex items-center mb-1">
-                <Zap class="w-3.5 h-3.5 text-amber-500 mr-1" />
-                Total Dorm Electric Bill (₱)
-              </label>
-              <input
-                v-model.number="electricBill"
-                type="number"
-                @input="calculateSplit"
-                class="w-full px-3 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-msu-maroon focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label class="font-medium text-slate-600 flex items-center mb-1">
-                <Droplet class="w-3.5 h-3.5 text-blue-500 mr-1" />
-                Total Dorm Water Bill (₱)
-              </label>
-              <input
-                v-model.number="waterBill"
-                type="number"
-                @input="calculateSplit"
-                class="w-full px-3 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-msu-maroon focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label class="font-medium text-slate-600 mb-1 block">Active Room Occupants</label>
-              <input
-                v-model.number="occupants"
-                type="number"
-                min="1"
-                @input="calculateSplit"
-                class="w-full px-3 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-msu-maroon focus:outline-none"
-              />
-            </div>
-
-            <div v-if="splitResult" class="bg-emerald-50 border border-emerald-200 p-3 rounded-lg mt-3 text-emerald-900">
-              <div class="font-bold text-xs uppercase text-emerald-800">Calculated Share Per Student</div>
-              <div class="text-xl font-extrabold text-emerald-700 mt-1">₱{{ splitResult.totalUtilityShare }}</div>
-              <div class="text-[11px] text-emerald-700 mt-0.5">
-                (Electricity: ₱{{ splitResult.electricShare }} + Water: ₱{{ splitResult.waterShare }})
-              </div>
-            </div>
-          </div>
+          <button
+            @click="fetchFinanceSummary"
+            :disabled="summaryLoading"
+            class="rounded-lg bg-msu-maroon px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
+          >
+            {{ summaryLoading ? 'Loading...' : 'Apply filters' }}
+          </button>
         </div>
 
-        <!-- Offline Payment Logger Demo -->
-        <div class="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <div class="flex items-center justify-between border-b pb-2">
-            <div class="flex items-center space-x-2 text-slate-800 font-bold text-sm">
-              <CreditCard class="w-4 h-4 text-emerald-600" />
-              <span>Payment Logger (Offline-Resilient)</span>
+        <div class="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+          <label class="font-medium text-slate-600">
+            <span class="mb-1 block">Property</span>
+            <select v-model="summaryPropertyId" class="w-full rounded border border-slate-300 bg-white px-3 py-2">
+              <option value="">All properties</option>
+              <option v-for="property in housingStore.properties" :key="property.id" :value="property.id">
+                {{ property.name }}
+              </option>
+            </select>
+          </label>
+          <label class="font-medium text-slate-600">
+            <span class="mb-1 block">From date</span>
+            <input v-model="summaryStartDate" type="date" class="w-full rounded border border-slate-300 px-3 py-2" />
+          </label>
+          <label class="font-medium text-slate-600">
+            <span class="mb-1 block">Through date</span>
+            <input v-model="summaryEndDate" type="date" :min="summaryStartDate || undefined" class="w-full rounded border border-slate-300 px-3 py-2" />
+          </label>
+          <label class="font-medium text-slate-600">
+            <span class="mb-1 block">Payment status</span>
+            <select v-model="summaryStatus" class="w-full rounded border border-slate-300 bg-white px-3 py-2">
+              <option value="all">All statuses</option>
+              <option value="unpaid">Unpaid</option>
+              <option value="partially_paid">Partially paid</option>
+              <option value="paid">Paid</option>
+              <option value="overdue">Overdue</option>
+            </select>
+          </label>
+        </div>
+
+        <p v-if="summaryError" role="alert" class="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+          {{ summaryError }}
+        </p>
+        <div v-if="financeSummary" class="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-live="polite">
+          <article class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+            <p class="text-xs font-semibold uppercase text-emerald-800">Total collected</p>
+            <p class="mt-1 text-2xl font-extrabold text-emerald-900">₱{{ formatMoney(financeSummary.totalCollected) }}</p>
+          </article>
+          <article class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p class="text-xs font-semibold uppercase text-amber-800">Outstanding</p>
+            <p class="mt-1 text-2xl font-extrabold text-amber-900">₱{{ formatMoney(financeSummary.totalOutstanding) }}</p>
+          </article>
+          <article class="rounded-lg border border-red-200 bg-red-50 p-4">
+            <p class="text-xs font-semibold uppercase text-red-800">Overdue</p>
+            <p class="mt-1 text-2xl font-extrabold text-red-900">₱{{ formatMoney(financeSummary.totalOverdue) }}</p>
+          </article>
+        </div>
+      </section>
+
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 print-hidden">
+        <section class="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex items-center space-x-2 border-b pb-2 text-sm font-bold text-slate-800">
+            <Calculator class="h-4 w-4 text-msu-maroon" />
+            <span>Shared Utility Splitter</span>
+          </div>
+          <div class="space-y-3 text-xs">
+            <label class="block font-medium text-slate-600">
+              <span class="mb-1 flex items-center"><Zap class="mr-1 h-3.5 w-3.5 text-amber-500" />Total dorm electric bill (₱)</span>
+              <input v-model.number="electricBill" type="number" min="0" @input="calculateSplit" class="w-full rounded border border-slate-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-msu-maroon" />
+            </label>
+            <label class="block font-medium text-slate-600">
+              <span class="mb-1 flex items-center"><Droplet class="mr-1 h-3.5 w-3.5 text-blue-500" />Total dorm water bill (₱)</span>
+              <input v-model.number="waterBill" type="number" min="0" @input="calculateSplit" class="w-full rounded border border-slate-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-msu-maroon" />
+            </label>
+            <label class="block font-medium text-slate-600">
+              <span class="mb-1 block">Active room occupants</span>
+              <input v-model.number="occupants" type="number" min="1" @input="calculateSplit" class="w-full rounded border border-slate-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-msu-maroon" />
+            </label>
+            <div v-if="splitResult" class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
+              <div class="text-xs font-bold uppercase text-emerald-800">Calculated share per student</div>
+              <div class="mt-1 text-xl font-extrabold text-emerald-700">₱{{ formatMoney(splitResult.totalUtilityShare) }}</div>
+              <div class="mt-0.5 text-[11px] text-emerald-700">
+                Electricity: ₱{{ formatMoney(splitResult.electricShare) }} + Water: ₱{{ formatMoney(splitResult.waterShare) }}
+              </div>
             </div>
-            <span class="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
-              {{ networkStore.isOnline ? 'Online mode' : 'Offline Queue active' }}
+            <p v-if="splitError" role="alert" class="text-red-700">{{ splitError }}</p>
+          </div>
+        </section>
+
+        <section class="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+          <div class="flex items-center justify-between border-b pb-2">
+            <div class="flex items-center space-x-2 text-sm font-bold text-slate-800">
+              <CreditCard class="h-4 w-4 text-emerald-600" />
+              <span>Record a Payment</span>
+            </div>
+            <span class="rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+              {{ networkStore.isOnline ? 'Online mode' : 'Offline queue active' }}
             </span>
           </div>
 
-          <div v-if="paymentFeedback" class="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg flex items-center justify-between">
+          <div v-if="paymentFeedback" role="status" class="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
             <span>{{ paymentFeedback }}</span>
-            <button @click="paymentFeedback = null" class="text-xs font-bold underline ml-2">Dismiss</button>
+            <button @click="paymentFeedback = null" class="ml-2 font-bold underline">Dismiss</button>
+          </div>
+          <div v-if="paymentError" role="alert" class="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+            {{ paymentError }}
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            <div>
-              <label class="font-medium text-slate-600 block mb-1">Invoice Reference</label>
-              <input
-                v-model="selectedInvoiceId"
-                placeholder="e.g. inv-uuid-or-id"
-                class="w-full px-3 py-1.5 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-msu-maroon"
-              />
-            </div>
-
-            <div>
-              <label class="font-medium text-slate-600 block mb-1">Payment Amount (₱)</label>
-              <input
-                v-model.number="paymentAmount"
-                type="number"
-                placeholder="2100"
-                class="w-full px-3 py-1.5 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-msu-maroon"
-              />
-            </div>
-
-            <div>
-              <label class="font-medium text-slate-600 block mb-1">Method</label>
-              <select
-                v-model="paymentMethod"
-                class="w-full px-3 py-1.5 border border-slate-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-msu-maroon"
-              >
-                <option value="cash">Cash (On-site)</option>
-                <option value="gcash">GCash</option>
-                <option value="bank_transfer">Bank Transfer</option>
+          <div class="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
+            <label class="font-medium text-slate-600">
+              <span class="mb-1 block">Invoice</span>
+              <select v-model="selectedInvoiceId" class="w-full rounded border border-slate-300 bg-white px-3 py-1.5">
+                <option value="">Select an invoice</option>
+                <option v-for="invoice in billingStore.invoices" :key="invoice.id" :value="invoice.id">
+                  {{ invoice.invoiceNumber }} — ₱{{ formatMoney(outstandingBalance(invoice)) }} due
+                </option>
               </select>
-            </div>
+            </label>
+            <label class="font-medium text-slate-600">
+              <span class="mb-1 block">Payment amount (₱)</span>
+              <input v-model.number="paymentAmount" type="number" min="0.01" :max="selectedBalance" step="0.01" class="w-full rounded border border-slate-300 px-3 py-1.5" />
+              <span v-if="selectedInvoice" class="mt-1 block text-[11px] text-slate-500">Outstanding: ₱{{ formatMoney(selectedBalance) }}</span>
+            </label>
+            <label class="font-medium text-slate-600">
+              <span class="mb-1 block">Method</span>
+              <select v-model="paymentMethod" class="w-full rounded border border-slate-300 bg-white px-3 py-1.5">
+                <option value="cash">Cash (on-site)</option>
+                <option value="gcash">GCash</option>
+                <option value="bank_transfer">Bank transfer</option>
+              </select>
+            </label>
           </div>
-
           <button
             @click="handlePayment"
-            class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors"
+            :disabled="!selectedInvoice || selectedBalance <= 0"
+            class="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Record Payment Now (Auto-syncs via Dexie)
+            Record payment
           </button>
-        </div>
+        </section>
       </div>
 
-      <!-- Invoices Table -->
-      <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-          <h2 class="font-bold text-sm text-slate-800">Monthly Invoices & Ledger</h2>
-        </div>
-
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider">
-              <tr>
-                <th class="px-5 py-3">Invoice #</th>
-                <th class="px-5 py-3">Rent</th>
-                <th class="px-5 py-3">Electricity</th>
-                <th class="px-5 py-3">Water</th>
-                <th class="px-5 py-3">Total</th>
-                <th class="px-5 py-3">Status</th>
-                <th class="px-5 py-3">Due Date</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-              <tr v-if="billingStore.invoices.length === 0">
-                <td colspan="7" class="px-5 py-8 text-center text-slate-400">
-                  No billing records found.
-                </td>
-              </tr>
-              <tr v-for="inv in billingStore.invoices" :key="inv.id" class="hover:bg-slate-50">
-                <td class="px-5 py-3 font-semibold text-slate-800">{{ inv.invoiceNumber }}</td>
-                <td class="px-5 py-3">₱{{ inv.rentAmount }}</td>
-                <td class="px-5 py-3">₱{{ inv.electricityAmount }}</td>
-                <td class="px-5 py-3">₱{{ inv.waterAmount }}</td>
-                <td class="px-5 py-3 font-bold text-slate-900">₱{{ inv.totalAmount }}</td>
-                <td class="px-5 py-3">
-                  <span
-                    :class="[
-                      inv.status === 'paid' ? 'bg-emerald-100 text-emerald-800' :
-                      inv.status === 'partially_paid' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800',
-                      'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider'
-                    ]"
-                  >
-                    {{ inv.status.replace('_', ' ') }}
-                  </span>
-                </td>
-                <td class="px-5 py-3 text-slate-500">{{ inv.dueDate }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <InvoiceLedger />
     </div>
   </AppLayout>
 </template>
