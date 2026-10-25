@@ -57,4 +57,30 @@ export class UsersController {
   ): Promise<User> {
     return this.usersService.updateRole(id, role);
   }
+    // ──────────────────────────────────────────────────────────
+  // INDIVIDUAL TASK: BULLET 1 - ROLE-BASED AUTHENTICATION LOGIN
+  // ──────────────────────────────────────────────────────────
+  @Post('login')
+  @ApiOperation({ summary: 'Log in a user and return their role-based token' })
+  async login(@Body() loginDto: any) {
+    // Dito pinapasa ang login request para ma-authenticate ang credentials
+    // At magbabalik ng context kung anong Role (Student, Manager, Admin) ang meron sila.
+    return this.usersService.authenticateUser(loginDto);
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // INDIVIDUAL TASK: BULLET 4 - UNIVERSITY ADMIN OVERSIGHT
+  // ──────────────────────────────────────────────────────────
+  @Get('admin/system-oversight')
+  @Roles(Role.UNIVERSITY_ADMIN) // blocked ang HINDI University Admin
+  @ApiOperation({ summary: 'Access system-wide reporting and oversight (University Admin Only)' })
+  async getSystemOversight() {
+    // University Admin ang pwedeng makakita ng data na ito
+    return {
+      message: "System-wide reporting status active.",
+      timestamp: new Date(),
+      status: "Secure access verified."
+    };
+  }
+
 }
