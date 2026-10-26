@@ -39,6 +39,23 @@ async function handleLogout() {
           {{ authStore.user.fullName?.charAt(0) || 'U' }}
         </div>
         <button
+          v-if="!authStore.isAdmin"
+          @click="authStore.devLogin('admin.housing@msu.edu.ph', 'university_admin', 'Dr. Taratingan (Housing Admin)')"
+          class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-800 px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center space-x-1"
+          title="Switch to University Admin role to test Application Reports"
+        >
+          <span>Admin Mode</span>
+        </button>
+        <button
+          v-else
+          @click="authStore.devLogin('student.msu@msu.edu.ph', 'student', 'Amina Dimaporo (Student)')"
+          class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition-colors"
+          title="Switch back to Student role"
+        >
+          <span>Student Mode</span>
+        </button>
+
+        <button
           @click="handleLogout"
           class="p-2 text-slate-500 hover:text-red-600 hover:bg-slate-100 rounded-lg transition-colors"
           title="Sign out"

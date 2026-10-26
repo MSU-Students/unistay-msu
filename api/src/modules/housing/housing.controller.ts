@@ -1,3 +1,4 @@
+
 import {
   Controller,
   Get,
@@ -12,8 +13,10 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { HousingService } from './housing.service';
 import {
+  AdminApplicationReportQueryDto,
   CreateApplicationDto,
   CreatePropertyDto,
+  UpdateApplicationComplianceDto,
   UpdateApplicationStatusDto,
   UpdatePropertyDto,
 } from './dto/housing.dto';
@@ -120,12 +123,35 @@ export class HousingController {
     return this.housingService.findApplicationsByUser(user);
   }
 
+  @Get('admin/application-report')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Get filtered housing application report' })
+  async getAdminApplicationReport(
+    @Query() filters: AdminApplicationReportQueryDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.housingService.findAdminApplicationReport(filters, user);
+  }
+
+  @Patch('applications/:id/compliance')
+  @Roles(Role.UNIVERSITY_ADMIN)
+  @ApiOperation({
+    summary: 'Flag or clear an application policy exception or escalation',
+  })
+  async updateApplicationCompliance(
+    @Param('id') id: string,
+    @Body() dto: UpdateApplicationComplianceDto,
+  ) {
+    return this.housingService.updateApplicationCompliance(id, dto);
+  }
+
   @Get('my-residence')
   @Roles(Role.STUDENT)
   @ApiOperation({ summary: 'Get current assigned dormitory property and room for logged-in student' })
   async getMyResidence(@CurrentUser() user: User) {
     return this.housingService.getMyResidence(user);
   }
+
   @Get('applications/review')
   @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
   @ApiOperation({
@@ -148,4 +174,3 @@ export class HousingController {
     return this.housingService.updateApplicationStatus(id, dto.status, user);
   }
 }
-

@@ -1,9 +1,31 @@
-import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Property, PropertyType, Unit } from './entities/property.entity';
-import { Application, ApplicationStatus, Lease } from './entities/application.entity';
-import { CreateApplicationDto, CreatePropertyDto, UpdatePropertyDto } from './dto/housing.dto';
+import {
+  Property,
+  PropertyType,
+  Unit,
+} from './entities/property.entity';
+import {
+  Application,
+  ApplicationStatus,
+  ApplicationStatusHistoryEntry,
+  Lease,
+} from './entities/application.entity';
+import {
+  AdminApplicationReportQueryDto,
+  CreateApplicationDto,
+  CreatePropertyDto,
+  UpdateApplicationComplianceDto,
+  UpdatePropertyDto,
+} from './dto/housing.dto';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../../common/enums/role.enum';
 
@@ -51,6 +73,7 @@ export class HousingService implements OnModuleInit {
         maxMonthlyRate: 1200,
         isAccredited: true,
       });
+
       const savedAlumni = await this.propertyRepo.save(alumniDorm);
 
       // Units for Alumni Dorm
@@ -60,6 +83,7 @@ export class HousingService implements OnModuleInit {
         this.unitRepo.create({ roomNumber: 'Room 204', capacity: 2, occupiedCount: 1, monthlyRent: 1200, isAvailable: true, property: savedAlumni }),
         this.unitRepo.create({ roomNumber: 'Room 205', capacity: 2, occupiedCount: 2, monthlyRent: 1200, isAvailable: false, property: savedAlumni }),
       ];
+
       await this.unitRepo.save(alumniUnits);
 
       // 2. Marawi Heights Boarding House (Accredited Private Boarding House)
@@ -74,6 +98,7 @@ export class HousingService implements OnModuleInit {
         maxMonthlyRate: 2500,
         isAccredited: true,
       });
+
       const savedHeights = await this.propertyRepo.save(marawiHeights);
 
       const heightsUnits = [
@@ -81,6 +106,7 @@ export class HousingService implements OnModuleInit {
         this.unitRepo.create({ roomNumber: 'Unit A2', capacity: 2, occupiedCount: 2, monthlyRent: 1800, isAvailable: false, property: savedHeights }),
         this.unitRepo.create({ roomNumber: 'Unit B1', capacity: 1, occupiedCount: 0, monthlyRent: 2500, isAvailable: true, property: savedHeights }),
       ];
+
       await this.unitRepo.save(heightsUnits);
 
       this.logger.log('Initial housing properties and units seeded successfully.');
@@ -89,8 +115,11 @@ export class HousingService implements OnModuleInit {
     }
   }
 
-  async findAllProperties(query?: { type?: string; maxPrice?: number }): Promise<Property[]> {
-    const qb = this.propertyRepo.createQueryBuilder('property')
+  async findAllProperties(
+    query?: { type?: string; maxPrice?: number },
+  ): Promise<Property[]> {
+    const qb = this.propertyRepo
+      .createQueryBuilder('property')
       .leftJoinAndSelect('property.units', 'units')
       .leftJoinAndSelect('property.manager', 'manager');
 
@@ -252,7 +281,6 @@ export class HousingService implements OnModuleInit {
     return this.propertyRepo.save(property);
   }
 
-  
   async updateProperty(
     id: string,
     dto: UpdatePropertyDto,
@@ -264,9 +292,12 @@ export class HousingService implements OnModuleInit {
     return this.propertyRepo.save(property);
   }
 
-
-  async createApplication(dto: CreateApplicationDto, applicant: User): Promise<Application> {
+  async createApplication(
+    dto: CreateApplicationDto,
+    applicant: User,
+  ): Promise<Application> {
     const property = await this.findPropertyById(dto.propertyId);
+
     let unit: Unit | undefined = undefined;
     if (dto.unitId) {
       unit = await this.findUnitById(dto.unitId);
@@ -277,6 +308,13 @@ export class HousingService implements OnModuleInit {
       unit,
       remarks: dto.remarks,
       status: ApplicationStatus.PENDING,
+      statusHistory: [
+        {
+          status: ApplicationStatus.PENDING,
+          changedAt: new Date().toISOString(),
+          changedBy: applicant.id,
+        },
+      ],
     });
 
     return this.applicationRepo.save(application);
@@ -322,7 +360,7 @@ export class HousingService implements OnModuleInit {
   async updateApplicationStatus(
     id: string,
     status: ApplicationStatus,
-    user: User,
+    changedBy: User,
   ): Promise<Application> {
     const application = await this.applicationRepo.findOne({
       where: { id },
@@ -334,24 +372,205 @@ export class HousingService implements OnModuleInit {
     }
 
     if (
-      user.role === Role.PROPERTY_MANAGER &&
-      application.property.manager?.id !== user.id
+      changedBy.role === Role.PROPERTY_MANAGER &&
+      application.property.manager?.id !== changedBy.id
     ) {
       throw new ForbiddenException(
-        'You can only manage applications for your assigned properties',
+        'You can only update applications for your assigned properties',
       );
     }
 
+    if (application.status !== status) {
+      application.status = status;
+      application.statusHistory = [
+        ...(application.statusHistory || []),
+        {
+          status,
+          changedAt: new Date().toISOString(),
+          changedBy: changedBy.id,
+        },
+      ];
+    }
+
+    return this.applicationRepo.save(application);
+  }
+
+  async findAdminApplicationReport(
+    filters: AdminApplicationReportQueryDto,
+    user: User,
+  ) {
     if (
-      user.role !== Role.PROPERTY_MANAGER &&
-      user.role !== Role.UNIVERSITY_ADMIN
+      filters.fromDate &&
+      filters.toDate &&
+      filters.fromDate > filters.toDate
     ) {
-      throw new ForbiddenException(
-        'You are not allowed to update application status',
+      throw new BadRequestException(
+        'fromDate must be on or before toDate',
       );
     }
 
-    application.status = status;
+    const query = this.applicationRepo
+      .createQueryBuilder('application')
+      .leftJoinAndSelect('application.applicant', 'applicant')
+      .leftJoinAndSelect('application.property', 'property')
+      .leftJoin('property.manager', 'manager')
+      .leftJoinAndSelect('application.unit', 'unit')
+      .orderBy('application.createdAt', 'DESC');
+
+    if (user.role === Role.PROPERTY_MANAGER) {
+      query.andWhere('manager.id = :managerId', {
+        managerId: user.id,
+      });
+    } else if (user.role !== Role.UNIVERSITY_ADMIN) {
+      throw new ForbiddenException(
+        'You cannot access housing application reports',
+      );
+    }
+
+    if (filters.propertyId) {
+      query.andWhere('property.id = :propertyId', {
+        propertyId: filters.propertyId,
+      });
+    }
+
+    if (filters.status) {
+      query.andWhere('application.status = :status', {
+        status: filters.status,
+      });
+    }
+
+    if (filters.fromDate) {
+      query.andWhere('application.createdAt >= :fromDate', {
+        fromDate: new Date(`${filters.fromDate}T00:00:00.000Z`),
+      });
+    }
+
+    if (filters.toDate) {
+      const dayAfterToDate = new Date(
+        `${filters.toDate}T00:00:00.000Z`,
+      );
+
+      dayAfterToDate.setUTCDate(dayAfterToDate.getUTCDate() + 1);
+
+      query.andWhere('application.createdAt < :dayAfterToDate', {
+        dayAfterToDate,
+      });
+    }
+
+    const applications = await query.getMany();
+
+    const count = (status: ApplicationStatus) =>
+      applications.filter(
+        (application) => application.status === status,
+      ).length;
+
+    return {
+      summary: {
+        total: applications.length,
+        pending: count(ApplicationStatus.PENDING),
+        approved: count(ApplicationStatus.APPROVED),
+        rejected: count(ApplicationStatus.REJECTED),
+        cancelled: count(ApplicationStatus.CANCELLED),
+        policyExceptions: applications.filter(
+          (application) => application.policyException,
+        ).length,
+        escalated: applications.filter(
+          (application) => application.escalated,
+        ).length,
+      },
+      applications: applications.map((application) => ({
+        id: application.id,
+        status: application.status,
+        statusHistory: application.statusHistory || [],
+        policyException: application.policyException,
+        policyExceptionReason: application.policyExceptionReason,
+        escalated: application.escalated,
+        escalationReason: application.escalationReason,
+        createdAt: application.createdAt,
+        updatedAt: application.updatedAt,
+        applicant: {
+          id: application.applicant.id,
+          fullName: application.applicant.fullName,
+          studentIdNumber: application.applicant.studentIdNumber,
+          college: application.applicant.college,
+          course: application.applicant.course,
+        },
+        property: {
+          id: application.property.id,
+          name: application.property.name,
+          address: application.property.address,
+        },
+        unit: application.unit
+          ? {
+              id: application.unit.id,
+              roomNumber: application.unit.roomNumber,
+            }
+          : null,
+      })),
+    };
+  }
+
+  async updateApplicationCompliance(
+    id: string,
+    dto: UpdateApplicationComplianceDto,
+  ): Promise<Application> {
+    const application = await this.applicationRepo.findOne({
+      where: { id },
+    });
+    if (!application) {
+      throw new NotFoundException(`Application with ID ${id} not found`);
+    }
+
+    if (dto.policyException !== undefined) {
+      application.policyException = dto.policyException;
+      application.policyExceptionReason = dto.policyException
+        ? dto.policyExceptionReason?.trim() ||
+          application.policyExceptionReason
+        : null;
+
+      if (
+        dto.policyException &&
+        !application.policyExceptionReason
+      ) {
+        throw new BadRequestException(
+          'A reason is required when flagging a policy exception',
+        );
+      }
+    } else if (dto.policyExceptionReason !== undefined) {
+      const reason = dto.policyExceptionReason.trim();
+
+      if (application.policyException && !reason) {
+        throw new BadRequestException(
+          'A reason is required when a policy exception is flagged',
+        );
+      }
+
+      application.policyExceptionReason = reason || null;
+    }
+
+    if (dto.escalated !== undefined) {
+      application.escalated = dto.escalated;
+      application.escalationReason = dto.escalated
+        ? dto.escalationReason?.trim() ||
+          application.escalationReason
+        : null;
+
+      if (dto.escalated && !application.escalationReason) {
+        throw new BadRequestException(
+          'A reason is required when escalating an application',
+        );
+      }
+    } else if (dto.escalationReason !== undefined) {
+      const reason = dto.escalationReason.trim();
+
+      if (application.escalated && !reason) {
+        throw new BadRequestException(
+          'A reason is required when an application is escalated',
+        );
+      }
+
+      application.escalationReason = reason || null;
+    }
 
     return this.applicationRepo.save(application);
   }
@@ -387,7 +606,9 @@ export class HousingService implements OnModuleInit {
     });
 
     if (app && app.property) {
-      const assignedUnit = app.unit || (app.property.units && app.property.units[0]);
+      const assignedUnit =
+        app.unit || (app.property.units && app.property.units[0]);
+
       if (assignedUnit) {
         return {
           property: app.property,
@@ -403,11 +624,19 @@ export class HousingService implements OnModuleInit {
       order: { createdAt: 'ASC' },
       take: 1,
     });
+
     const defaultProperty = defaultProperties[0] ?? null;
 
-    if (defaultProperty && defaultProperty.units && defaultProperty.units.length > 0) {
+    if (
+      defaultProperty &&
+      defaultProperty.units &&
+      defaultProperty.units.length > 0
+    ) {
       // Pick room 204 or first unit
-      const defaultUnit = defaultProperty.units.find(u => u.roomNumber.includes('204')) || defaultProperty.units[0];
+      const defaultUnit =
+        defaultProperty.units.find((u) => u.roomNumber.includes('204')) ||
+        defaultProperty.units[0];
+
       return {
         property: defaultProperty,
         unit: defaultUnit,
@@ -418,7 +647,9 @@ export class HousingService implements OnModuleInit {
     return null;
   }
 
-  private getCommonAreasForProperty(_property: Property): { id: string; name: string }[] {
+  private getCommonAreasForProperty(
+    _property: Property,
+  ): { id: string; name: string }[] {
     return [
       { id: 'common-cr', name: 'Shared Restroom / CR' },
       { id: 'common-hallway', name: 'Hallway / Corridor' },

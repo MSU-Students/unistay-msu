@@ -16,6 +16,12 @@ export enum ApplicationStatus {
   CANCELLED = 'cancelled',
 }
 
+export interface ApplicationStatusHistoryEntry {
+  status: ApplicationStatus;
+  changedAt: string;
+  changedBy: string;
+}
+
 @Entity('applications')
 export class Application {
   @PrimaryGeneratedColumn('uuid')
@@ -36,6 +42,21 @@ export class Application {
     default: ApplicationStatus.PENDING,
   })
   status: ApplicationStatus;
+
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  statusHistory: ApplicationStatusHistoryEntry[];
+
+  @Column({ default: false })
+  policyException: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  policyExceptionReason?: string | null;
+
+  @Column({ default: false })
+  escalated: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  escalationReason?: string | null;
 
   @Column({ type: 'text', nullable: true })
   remarks?: string;
