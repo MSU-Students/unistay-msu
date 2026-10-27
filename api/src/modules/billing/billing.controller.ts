@@ -5,7 +5,6 @@ import {
   Patch,
   Body,
   Param,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -23,7 +22,6 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { User } from '../users/entities/user.entity';
-import { InvoiceStatus } from './entities/invoice.entity';
 
 @ApiTags('Billing & Utility Splitting')
 @ApiBearerAuth()
@@ -99,24 +97,6 @@ async voidInvoice(
       totalElectric: dto.totalElectricBill,
       totalWater: dto.totalWaterBill,
       occupantCount: dto.occupantCount,
-    });
-  }
-  @Get('financial-summary')
-  @Roles(Role.UNIVERSITY_ADMIN)
-  @ApiOperation({
-    summary: 'Get financial summaries and payment anomalies',
-  })
-  async getFinancialSummary(
-    @Query('propertyId') propertyId?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('status') status?: InvoiceStatus,
-  ) {
-    return this.billingService.getFinancialSummary({
-      propertyId,
-      startDate,
-      endDate,
-      status,
     });
   }
 }
