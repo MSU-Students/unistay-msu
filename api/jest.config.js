@@ -1,4 +1,4 @@
-﻿module.exports = {
+module.exports = {
   rootDir: '.',
   testEnvironment: 'node',
   testMatch: ['<rootDir>/src/**/*.spec.ts'],
