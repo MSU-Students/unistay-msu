@@ -459,9 +459,8 @@ function outstandingBalance(invoice: Invoice) {
             <span>Shared Utility Splitter</span>
           </div>
 
-            <span>Shared Utility Splitter</span>
-          </div>
           <div class="space-y-3 text-xs">
+
             <label class="block font-medium text-slate-600">
               <span class="mb-1 flex items-center"><Zap class="mr-1 h-3.5 w-3.5 text-amber-500" />Total dorm electric bill (₱)</span>
               <input v-model.number="electricBill" type="number" min="0" @input="calculateSplit" class="w-full rounded border border-slate-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-msu-maroon" />
