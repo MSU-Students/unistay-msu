@@ -49,6 +49,7 @@ export interface Property {
   minMonthlyRate: number;
   maxMonthlyRate: number;
   isAccredited: boolean;
+  rejectionReason?: string | null;
   units?: Unit[];
 }
 

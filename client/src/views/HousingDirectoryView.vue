@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import AppLayout from '../components/layout/AppLayout.vue';
 import { useHousingStore } from '../stores/housing';
-import { Search, MapPin, Building, ShieldCheck, CheckCircle, Users, Plus, Minus } from 'lucide-vue-next';
+import { Search, MapPin, Building, ShieldCheck, Users, Plus, Minus } from 'lucide-vue-next';
 
 const housingStore = useHousingStore();
 const searchQuery = ref('');
@@ -11,12 +11,6 @@ const filterType = ref('');
 onMounted(() => {
   housingStore.fetchProperties();
 });
-
-// Handle property approval action
-const handleApprove = async (id: string) => {
-  const prop = housingStore.properties.find((p: any) => p.id === id);
-  if (prop) prop.isAccredited = true;
-};
 
 // Handle slot adjustments for occupancy tracking
 const updateSlots = (prop: any, change: number) => {
@@ -76,18 +70,9 @@ const updateSlots = (prop: any, change: number) => {
         >
           <div class="h-40 bg-slate-200 relative flex items-center justify-center text-slate-400">
             <Building class="w-12 h-12" />
-            <span
-              v-if="prop.isAccredited"
-              class="absolute top-3 right-3 bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center space-x-1"
-            >
+            <span class="absolute top-3 right-3 bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center space-x-1">
               <ShieldCheck class="w-3 h-3 mr-0.5" />
               Published
-            </span>
-            <span
-              v-else
-              class="absolute top-3 right-3 bg-amber-500 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-            >
-              Pending Approval
             </span>
           </div>
 
@@ -140,26 +125,14 @@ const updateSlots = (prop: any, change: number) => {
                 </div>
               </div>
 
-              <div class="flex gap-2">
-                <!-- Approve Button -->
-                <button
-                  v-if="!prop.isAccredited"
-                  @click="handleApprove(prop.id)"
-                  class="bg-emerald-600 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1"
-                >
-                  <CheckCircle class="w-3.5 h-3.5" /> Approve
-                </button>
-
-                <!-- Apply Now Button (Disabled if Fully Booked) -->
-                <button
-                  :disabled="(prop.availableSlots ?? 5) === 0"
-                  @click="housingStore.submitApplication(prop.id)"
-                  :class="(prop.availableSlots ?? 5) === 0 ? 'bg-slate-300 cursor-not-allowed' : 'bg-msu-maroon hover:bg-msu-darkmaroon'"
-                  class="text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  {{ (prop.availableSlots ?? 5) === 0 ? 'Full' : 'Apply Now' }}
-                </button>
-              </div>
+              <button
+                :disabled="(prop.availableSlots ?? 5) === 0"
+                @click="housingStore.submitApplication(prop.id)"
+                :class="(prop.availableSlots ?? 5) === 0 ? 'bg-slate-300 cursor-not-allowed' : 'bg-msu-maroon hover:bg-msu-darkmaroon'"
+                class="text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+              >
+                {{ (prop.availableSlots ?? 5) === 0 ? 'Full' : 'Apply Now' }}
+              </button>
             </div>
           </div>
         </div>

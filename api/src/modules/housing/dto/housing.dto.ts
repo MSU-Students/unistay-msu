@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 import { PropertyType } from '../entities/property.entity';
 import { ApplicationStatus } from '../entities/application.entity';
 
@@ -59,4 +59,16 @@ export class UpdateApplicationStatusDto {
   @ApiProperty({ enum: ApplicationStatus })
   @IsEnum(ApplicationStatus)
   status: ApplicationStatus;
+}
+
+export class UpdatePropertyAccreditationDto {
+  @ApiProperty({ enum: ['approved', 'rejected'] })
+  @IsIn(['approved', 'rejected'])
+  status: 'approved' | 'rejected';
+
+  @ApiPropertyOptional({ example: 'Please provide current safety inspection documents.' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  reason?: string;
 }

@@ -11,6 +11,7 @@ import {
   CalendarDays,
   Briefcase,
   ClipboardCheck,
+  ClipboardList,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -19,6 +20,9 @@ const authStore = useAuthStore();
 const navigation = computed(() => [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
   { name: 'Housing Directory', path: '/housing', icon: Building2 },
+  ...(authStore.isAdmin
+    ? [{ name: 'Pending Listings', path: '/housing/pending', icon: ClipboardList }]
+    : []),
   ...(authStore.isManager
     ? [
         {
@@ -51,7 +55,9 @@ const navigation = computed(() => [
         :class="[
           route.path === item.path ||
           (item.path === '/applications/review' &&
-            route.path.startsWith('/applications/review'))
+            route.path.startsWith('/applications/review')) ||
+          (item.path === '/housing/pending' &&
+            route.path.startsWith('/housing/pending'))
             ? 'bg-msu-maroon text-white font-semibold'
             : 'text-slate-400 hover:bg-slate-800 hover:text-white',
           'flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm transition-colors',

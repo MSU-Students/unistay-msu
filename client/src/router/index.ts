@@ -9,6 +9,7 @@ import LoginView from '../views/LoginView.vue';
 import RegisterView from '../views/RegisterView.vue';
 import AuthCallbackView from '../views/AuthCallbackView.vue';
 import ApplicationsReviewView from '../views/ApplicationsReviewView.vue';
+import PendingListingsView from '../views/PendingListingsView.vue';
 import { useAuthStore } from '../stores/auth';
 
 const routes: RouteRecordRaw[] = [
@@ -25,15 +26,25 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false, title: 'Dormitory & Housing Directory' },
   },
   {
-  path: '/applications/review',
-  name: 'applications-review',
-  component: ApplicationsReviewView,
-  meta: {
-    requiresAuth: true,
-    requiresManager: true,
-    title: 'Applications Review',
+    path: '/housing/pending',
+    name: 'pending-listings',
+    component: PendingListingsView,
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Pending Listings',
+    },
   },
-},
+  {
+    path: '/applications/review',
+    name: 'applications-review',
+    component: ApplicationsReviewView,
+    meta: {
+      requiresAuth: true,
+      requiresManager: true,
+      title: 'Applications Review',
+    },
+  },
   {
     path: '/billing',
     name: 'billing',
@@ -95,6 +106,8 @@ router.beforeEach(async (to, from, next) => {
   } else if (to.meta.guestOnly && authStore.isAuthenticated) {
     next({ name: 'dashboard' });
   } else if (to.meta.requiresManager && !authStore.isManager) {
+    next({ name: 'dashboard' });
+  } else if (to.meta.requiresAdmin && !authStore.isAdmin) {
     next({ name: 'dashboard' });
   } else {
     next();

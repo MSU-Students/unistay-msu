@@ -50,8 +50,11 @@ export class Property {
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   maxMonthlyRate: number;
 
-  @Column({ default: true })
+  @Column({ default: false })
   isAccredited: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  rejectionReason: string | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   manager: User;

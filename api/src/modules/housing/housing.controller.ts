@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { HousingService } from './housing.service';
-import { CreateApplicationDto, CreatePropertyDto, UpdateApplicationStatusDto } from './dto/housing.dto';
+import { CreateApplicationDto, CreatePropertyDto, UpdateApplicationStatusDto, UpdatePropertyAccreditationDto } from './dto/housing.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -36,11 +36,28 @@ export class HousingController {
     return this.housingService.findAllProperties({ type, maxPrice });
   }
 
+  @Get('properties/pending')
+  @Roles(Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Get pending property listings for review' })
+  async findPendingProperties() {
+    return this.housingService.findPendingProperties();
+  }
+
   @Public()
   @Get('properties/:id')
   @ApiOperation({ summary: 'Get details for a property' })
   async findPropertyById(@Param('id') id: string) {
     return this.housingService.findPropertyById(id);
+  }
+
+  @Patch('properties/:id/accreditation')
+  @Roles(Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Approve or reject a property listing' })
+  async updatePropertyAccreditation(
+    @Param('id') id: string,
+    @Body() dto: UpdatePropertyAccreditationDto,
+  ) {
+    return this.housingService.updatePropertyAccreditation(id, dto.status, dto.reason);
   }
 
   @Post('properties')
