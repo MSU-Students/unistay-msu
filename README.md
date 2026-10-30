@@ -113,6 +113,14 @@ UniStay MSU operates even during campus network outages:
 
 ---
 
+## 💳 Payment Anomaly Review
+
+Billing responses flag payments when recorded amounts exceed the invoice charge (HIGH), when an identical amount is recorded for the same tenant and property within 24 hours (MEDIUM), or when the invoice lacks a tenant/property assignment or an active lease matching its tenant, unit, and property (HIGH). Lease matches must be active today, based on the lease's active flag and dates. Partial payments are valid, so an individual payment below the invoice balance is not anomalous by itself. These annotations are for review and do not change invoice balances, payment status, or collected/outstanding totals. The billing ledger can be filtered to show only flagged payments.
+
+The payment-to-invoice relation is nullable; unassigned payment records are exposed to managers and university admins in a separate review panel. The schema has no payment-gateway status or reversal/refund entries, so gateway/ledger status discrepancies cannot currently be detected. Offline sync state is not treated as gateway status.
+
+---
+
 ## 👥 Scrum Team Alignment (5 Teams / 27 Developers)
 
 | Team | Focus Area | Backend Modules | Frontend Views |
