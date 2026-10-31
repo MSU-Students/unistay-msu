@@ -3,10 +3,12 @@ import { ref, toRaw } from 'vue';
 import { isAxiosError } from 'axios';
 import {
   CreateInvoiceInput,
-  Invoice,
   InvoiceTenantOption,
-  Payment,
-  Property,
+  Property, 
+  FinanceSummary, 
+  FinanceSummaryQuery, 
+  Invoice, 
+  Payment 
 } from '../types';
 import apiClient from '../api/client';
 import { db } from '../db';
@@ -61,6 +63,10 @@ export const useBillingStore = defineStore('billing', () => {
     const res = await apiClient.post('/billing/invoices', payload);
     await fetchInvoices();
     return res.data.data as Invoice;
+  }
+  async function fetchFinanceSummary(filters: FinanceSummaryQuery) {
+    const res = await apiClient.get('/billing/admin/summary', { params: filters });
+    return res.data.data as FinanceSummary;
   }
 
   async function recordPayment(invoiceId: string, amount: number, paymentMethod: 'cash' | 'gcash' | 'bank_transfer') {
@@ -134,6 +140,7 @@ export const useBillingStore = defineStore('billing', () => {
     fetchInvoiceProperties,
     fetchInvoiceTenants,
     createInvoice,
+    fetchFinanceSummary,
     recordPayment,
     calculateUtilitySplit,
   };

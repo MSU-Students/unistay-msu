@@ -7,6 +7,7 @@ import {
   Gig,
   OfflineSyncItem,
   User,
+  HousingApplicationDraft,
 } from '../types';
 
 export class UniStayDexieDb extends Dexie {
@@ -17,6 +18,7 @@ export class UniStayDexieDb extends Dexie {
   gigs!: Table<Gig, string>;
   syncQueue!: Table<OfflineSyncItem, number>;
   cachedProfile!: Table<{ key: string; user: User; token: string }, string>;
+  applicationDrafts!: Table<HousingApplicationDraft, string>;
 
   constructor() {
     super('UniStayMSUDatabase');
@@ -28,6 +30,16 @@ export class UniStayDexieDb extends Dexie {
       gigs: 'id, category, status, createdAt',
       syncQueue: '++id, clientMutationId, action, status, queuedAt',
       cachedProfile: 'key',
+    });
+    this.version(2).stores({
+      properties: 'id, name, type, minMonthlyRate, isAccredited',
+      invoices: 'id, invoiceNumber, status, dueDate',
+      tickets: 'id, category, priority, status, createdAt',
+      bookings: 'id, status, startTime',
+      gigs: 'id, category, status, createdAt',
+      syncQueue: '++id, clientMutationId, action, status, queuedAt',
+      cachedProfile: 'key',
+      applicationDrafts: 'id, studentId, updatedAt',
     });
   }
 }

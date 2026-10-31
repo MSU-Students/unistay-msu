@@ -1,7 +1,9 @@
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import AppLayout from '../components/layout/AppLayout.vue';
+import { useHousingStore } from '../stores/housing';
+import type { ApplicationStatus } from '../types';
 import {
   Search,
   FileText,
@@ -15,8 +17,6 @@ import {
   ShieldAlert,
 } from 'lucide-vue-next';
 
-type ReviewStatus = 'pending' | 'approved' | 'rejected';
-
 interface ReviewApplication {
   id: string;
   studentName: string;
@@ -24,55 +24,39 @@ interface ReviewApplication {
   propertyName: string;
   roomNumber: string;
   submittedAt: string;
-  status: ReviewStatus;
+  status: ApplicationStatus;
   purpose: string;
   notes: string;
 }
 
-const applications = ref<ReviewApplication[]>([
-  {
-    id: 'APP-DEMO-001',
-    studentName: 'Sample Student One',
-    studentEmail: 'student1@example.com',
-    propertyName: 'MSU Partner Residence',
-    roomNumber: 'Room 204',
-    submittedAt: '2026-10-15',
-    status: 'pending',
-    purpose: 'Near-campus accommodation for the semester.',
-    notes: '',
-  },
-  {
-    id: 'APP-DEMO-002',
-    studentName: 'Sample Student Two',
-    studentEmail: 'student2@example.com',
-    propertyName: 'University View Boarding House',
-    roomNumber: 'Room 105',
-    submittedAt: '2026-10-14',
-    status: 'pending',
-    purpose: 'Looking for student housing near campus.',
-    notes: '',
-  },
-  {
-    id: 'APP-DEMO-003',
-    studentName: 'Sample Student Three',
-    studentEmail: 'student3@example.com',
-    propertyName: 'MSU Partner Residence',
-    roomNumber: 'Room 301',
-    submittedAt: '2026-10-12',
-    status: 'approved',
-    purpose: 'Accommodation for the current academic term.',
-    notes: 'Demo note: application reviewed.',
-  },
-]);
+const housingStore = useHousingStore();
+const localStatuses = ref<Record<string, ApplicationStatus>>({});
+const localNotes = ref<Record<string, string>>({});
 
 const searchQuery = ref('');
-const statusFilter = ref<'all' | ReviewStatus>('all');
-const selectedApplicationId = ref('APP-DEMO-001');
+const statusFilter = ref<'all' | ApplicationStatus>('all');
+const selectedApplicationId = ref('');
 const noteDraft = ref('');
 const feedback = ref('');
 
+const applications = computed<ReviewApplication[]>(() =>
+  housingStore.applications.map(application => ({
+    id: application.id,
+    studentName: application.applicant.fullName,
+    studentEmail: application.applicant.email,
+    propertyName: application.property.name,
+    roomNumber: application.unit?.roomNumber ?? 'Not assigned',
+    submittedAt: new Date(application.createdAt).toLocaleDateString(),
+    status: localStatuses.value[application.id] ?? application.status,
+    purpose: application.remarks?.trim() || 'No purpose provided.',
+    notes: localNotes.value[application.id] ?? '',
+  })),
+);
+
 const selectedApplication = computed(() =>
-  applications.value.find(app => app.id === selectedApplicationId.value) ?? null,
+  applications.value.find(app => app.id === selectedApplicationId.value)
+    ?? applications.value[0]
+    ?? null,
 );
 
 const filteredApplications = computed(() => {
@@ -109,26 +93,41 @@ function selectApplication(app: ReviewApplication) {
   feedback.value = '';
 }
 
-function updateStatus(status: ReviewStatus) {
+function updateStatus(status: ApplicationStatus) {
   if (!selectedApplication.value) return;
 
-  selectedApplication.value.status = status;
-  selectedApplication.value.notes = noteDraft.value.trim();
+  const applicationId = selectedApplication.value.id;
+  localStatuses.value = { ...localStatuses.value, [applicationId]: status };
+  localNotes.value = { ...localNotes.value, [applicationId]: noteDraft.value.trim() };
   feedback.value =
-    `Demo only: ${selectedApplication.value.id} marked ${status}. This change is not saved to the server.`;
+    `Local-only action: ${applicationId} marked ${status}. This change is not saved to the server.`;
 }
 
-function saveDemoNote() {
+function saveLocalNote() {
   if (!selectedApplication.value) return;
 
-  selectedApplication.value.notes = noteDraft.value.trim();
+  localNotes.value = {
+    ...localNotes.value,
+    [selectedApplication.value.id]: noteDraft.value.trim(),
+  };
   feedback.value =
-    'Demo note updated in this page only. It has not been saved to the server.';
+    'Note updated locally in this page only. It has not been saved to the server.';
 }
 
-function statusLabel(status: ReviewStatus) {
+function statusLabel(status: ApplicationStatus) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
+
+function statusClass(status: ApplicationStatus) {
+  if (status === 'pending') return 'bg-amber-100 text-amber-800';
+  if (status === 'approved') return 'bg-emerald-100 text-emerald-800';
+  if (status === 'rejected') return 'bg-red-100 text-red-800';
+  return 'bg-slate-100 text-slate-700';
+}
+
+onMounted(() => {
+  void housingStore.fetchApplicationsForReview();
+});
 </script>
 
 <template>
@@ -147,7 +146,7 @@ function statusLabel(status: ReviewStatus) {
 
       <div class="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
         <ShieldAlert class="h-4 w-4 shrink-0" />
-        Demo data only
+        Decisions and notes are local only
       </div>
     </div>
 
@@ -202,11 +201,36 @@ function statusLabel(status: ReviewStatus) {
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
         </div>
 
-        <div v-if="filteredApplications.length" class="divide-y divide-slate-100">
+        <div
+          v-if="housingStore.applicationsLoading && !applications.length"
+          class="p-8 text-center text-sm text-slate-500"
+          role="status"
+        >
+          Loading applications...
+        </div>
+
+        <div
+          v-else-if="housingStore.applicationsError"
+          class="p-6 text-center"
+          role="alert"
+        >
+          <p class="text-sm text-red-700">{{ housingStore.applicationsError }}</p>
+          <button
+            type="button"
+            :disabled="housingStore.applicationsLoading"
+            @click="housingStore.fetchApplicationsForReview()"
+            class="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {{ housingStore.applicationsLoading ? 'Retrying...' : 'Retry' }}
+          </button>
+        </div>
+
+        <div v-else-if="filteredApplications.length" class="divide-y divide-slate-100">
           <button
             v-for="app in filteredApplications"
             :key="app.id"
@@ -214,7 +238,7 @@ function statusLabel(status: ReviewStatus) {
             @click="selectApplication(app)"
             :class="[
               'w-full p-4 text-left transition-colors hover:bg-slate-50',
-              selectedApplicationId === app.id
+              selectedApplication?.id === app.id
                 ? 'border-l-4 border-msu-maroon bg-red-50/40'
                 : 'border-l-4 border-transparent',
             ]"
@@ -233,11 +257,7 @@ function statusLabel(status: ReviewStatus) {
               <span
                 :class="[
                   'shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold',
-                  app.status === 'pending'
-                    ? 'bg-amber-100 text-amber-800'
-                    : app.status === 'approved'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-red-100 text-red-800',
+                  statusClass(app.status),
                 ]"
               >
                 {{ statusLabel(app.status) }}
@@ -252,8 +272,12 @@ function statusLabel(status: ReviewStatus) {
 
         <div v-else class="p-8 text-center">
           <FileText class="mx-auto h-8 w-8 text-slate-300" />
-          <p class="mt-3 font-medium text-slate-700">No applications found</p>
-          <p class="mt-1 text-sm text-slate-500">Try another search or status filter.</p>
+          <p class="mt-3 font-medium text-slate-700">
+            {{ applications.length ? 'No applications found' : 'No applications submitted yet' }}
+          </p>
+          <p class="mt-1 text-sm text-slate-500">
+            {{ applications.length ? 'Try another search or status filter.' : 'Applications for your managed properties will appear here.' }}
+          </p>
         </div>
       </div>
 
@@ -319,15 +343,15 @@ function statusLabel(status: ReviewStatus) {
               />
               <button
                 type="button"
-                @click="saveDemoNote"
+                @click="saveLocalNote"
                 class="mt-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Save demo note
+                Save note locally
               </button>
             </div>
 
             <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-              These are sample records. Decisions and notes change only in this page's temporary demo state.
+              Application details are loaded from the API. Decisions and notes change only in this page's temporary local state.
             </div>
 
             <div v-if="selectedApplication.status === 'pending'" class="flex flex-col gap-3 sm:flex-row">
@@ -337,7 +361,7 @@ function statusLabel(status: ReviewStatus) {
                 class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
               >
                 <CheckCircle2 class="h-4 w-4" />
-                Approve demo
+                Approve locally
               </button>
               <button
                 type="button"
@@ -345,7 +369,7 @@ function statusLabel(status: ReviewStatus) {
                 class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
               >
                 <XCircle class="h-4 w-4" />
-                Reject demo
+                Reject locally
               </button>
             </div>
 

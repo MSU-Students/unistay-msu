@@ -7,10 +7,16 @@ import {
   Param,
   Query,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { HousingService } from './housing.service';
-import { CreateApplicationDto, CreatePropertyDto, UpdateApplicationStatusDto } from './dto/housing.dto';
+import {
+  CreateApplicationDto,
+  CreatePropertyDto,
+  UpdateApplicationStatusDto,
+  UpdatePropertyDto,
+} from './dto/housing.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -59,6 +65,26 @@ export class HousingController {
   ) {
     return this.housingService.findInvoiceTenants(propertyId, user);
   }
+  @Get('manager/properties')
+  @Roles(Role.PROPERTY_MANAGER)
+  @ApiOperation({ summary: 'List properties assigned to the current manager' })
+  async getManagedProperties(@CurrentUser() user: User) {
+    return this.housingService.findPropertiesAssignedToManager(user.id);
+  }
+
+  @Get('manager/tenants')
+  @Roles(Role.PROPERTY_MANAGER)
+  @ApiOperation({ summary: "List current tenants in the manager's properties" })
+  async getManagedTenants(@CurrentUser() user: User) {
+    return this.housingService.findTenantsAssignedToManager(user.id);
+  }
+
+  @Get('manager/applications')
+  @Roles(Role.PROPERTY_MANAGER)
+  @ApiOperation({ summary: "List applications for the manager's properties" })
+  async getManagedApplications(@CurrentUser() user: User) {
+    return this.housingService.findApplicationsForManager(user.id);
+  }
 
   @Post('properties')
   @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
@@ -68,6 +94,16 @@ export class HousingController {
     @CurrentUser() user: User,
   ) {
     return this.housingService.createProperty(dto, user);
+  }
+
+  @Patch('properties/:id')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Update a property/dormitory listing' })
+  async updateProperty(
+    @Param('id') id: string,
+    @Body() dto: UpdatePropertyDto,
+  ) {
+    return this.housingService.updateProperty(id, dto);
   }
 
   @Post('applications')
@@ -80,11 +116,41 @@ export class HousingController {
     return this.housingService.createApplication(dto, user);
   }
 
+  @Get('applications/:id')
+  @Roles(Role.STUDENT, Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Get a housing application by ID' })
+  async getApplicationById(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.housingService.findApplicationById(
+      id,
+      user.role === Role.STUDENT ? user.id : undefined,
+    );
+  }
+
   @Get('my-applications')
   @Roles(Role.STUDENT)
   @ApiOperation({ summary: 'Get current student applications' })
   async getMyApplications(@CurrentUser() user: User) {
     return this.housingService.findApplicationsByUser(user);
+  }
+
+  @Get('my-residence')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Get current assigned dormitory property and room for logged-in student' })
+  async getMyResidence(@CurrentUser() user: User) {
+    return this.housingService.getMyResidence(user);
+  }
+  @Get('applications/review')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({
+    summary: 'List applications for manager review',
+    description:
+      'Returns applications newest first with applicant name/email, property name, optional unit room, status, remarks, and submission date. Property managers only see applications for their properties; university admins see all applications.',
+  })
+  async getApplicationsForReview(@CurrentUser() user: User) {
+    return this.housingService.findApplicationsForReview(user);
   }
 
   @Patch('applications/:id/status')
@@ -93,7 +159,9 @@ export class HousingController {
   async updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateApplicationStatusDto,
+    @CurrentUser() user: User,
   ) {
-    return this.housingService.updateApplicationStatus(id, dto.status);
+    return this.housingService.updateApplicationStatus(id, dto.status, user);
   }
 }
+

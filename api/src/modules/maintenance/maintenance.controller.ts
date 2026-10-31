@@ -36,8 +36,11 @@ export class MaintenanceController {
 
   @Get('tickets/:id')
   @ApiOperation({ summary: 'Get single ticket details' })
-  async getTicketById(@Param('id') id: string) {
-    return this.maintenanceService.findTicketById(id);
+  async getTicketById(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.maintenanceService.findTicketById(
+      id,
+      user.role === Role.STUDENT ? user.id : undefined,
+    );
   }
 
   @Post('tickets')

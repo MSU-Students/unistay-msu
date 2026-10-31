@@ -6,6 +6,7 @@ import {
   Body,
   Param,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { BillingService } from './billing.service';
@@ -22,6 +23,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { User } from '../users/entities/user.entity';
+import { FinanceSummaryQueryDto, FinanceSummaryResponseDto } from './dto/finance.dto';
 
 @ApiTags('Billing & Utility Splitting')
 @ApiBearerAuth()
@@ -98,5 +100,13 @@ async voidInvoice(
       totalWater: dto.totalWaterBill,
       occupantCount: dto.occupantCount,
     });
+  }
+
+  // Admin financial summary endpoint
+  @Get('admin/summary')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Admin financial summary: collected, outstanding, overdue with filters and anomalies' })
+  async getFinancialSummary(@Query() query: FinanceSummaryQueryDto): Promise<FinanceSummaryResponseDto> {
+    return this.billingService.getFinancialSummary(query);
   }
 }
