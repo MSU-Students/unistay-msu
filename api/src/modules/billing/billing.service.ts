@@ -1,9 +1,17 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
 import { Invoice, InvoiceStatus, Payment } from './entities/invoice.entity';
-import { CreateInvoiceDto, RecordPaymentDto } from './dto/billing.dto';
-import { UsersService } from '../users/users.service';
+import {
+  CreateInvoiceDto,
+  RecordPaymentDto,
+  UpdateInvoiceDto,
+} from './dto/billing.dto';
 import { HousingService } from '../housing/housing.service';
 import { User } from '../users/entities/user.entity';
 import { FinanceSummaryQueryDto, FinanceSummaryResponseDto } from './dto/finance.dto';
@@ -16,7 +24,6 @@ export class BillingService {
     private readonly invoiceRepo: Repository<Invoice>,
     @InjectRepository(Payment)
     private readonly paymentRepo: Repository<Payment>,
-    private readonly usersService: UsersService,
     private readonly housingService: HousingService,
   ) {}
 
@@ -41,6 +48,7 @@ export class BillingService {
     const qb = this.invoiceRepo.createQueryBuilder('invoice')
       .leftJoinAndSelect('invoice.tenant', 'tenant')
       .leftJoinAndSelect('invoice.property', 'property')
+      .leftJoinAndSelect('property.manager', 'propertyManager')
       .leftJoinAndSelect('invoice.unit', 'unit')
       .leftJoinAndSelect('invoice.payments', 'payments')
       .where('invoice.id = :id', { id })
@@ -58,6 +66,9 @@ export class BillingService {
   }
 
   private refreshInvoiceStatus(invoice: Invoice): Invoice {
+    if (invoice.status === InvoiceStatus.VOIDED) {
+  return invoice;
+}
     const totalAmount = Number(invoice.totalAmount);
     const paidAmount = Number(invoice.paidAmount);
     const dueDate = new Date(invoice.dueDate);
@@ -78,15 +89,15 @@ export class BillingService {
     return invoice;
   }
 
-  async createInvoice(dto: CreateInvoiceDto): Promise<Invoice> {
-    const tenant = await this.usersService.findById(dto.tenantId);
-    const property = await this.housingService.findPropertyById(dto.propertyId);
-    const unit = dto.unitId
-      ? property.units?.find((candidate) => candidate.id === dto.unitId)
-      : undefined;
-    if (dto.unitId && !unit) {
-      throw new BadRequestException('The selected unit does not belong to the selected property');
-    }
+  async createInvoice(dto: CreateInvoiceDto, createdBy: User): Promise<Invoice> {
+    const { tenant, property, unit } =
+      await this.housingService.findInvoiceParties(
+        dto.propertyId,
+        dto.tenantId,
+        dto.unitId,
+        createdBy,
+      );
+
 
     const rent = Number(dto.rentAmount || 0);
     const electricity = Number(dto.electricityAmount || 0);
@@ -115,11 +126,105 @@ export class BillingService {
     return this.invoiceRepo.save(invoice);
   }
 
+  async updateInvoice(
+  id: string,
+  dto: UpdateInvoiceDto,
+  user: User,
+): Promise<Invoice> {
+    const invoice = await this.findInvoiceById(id);
+    if (
+  user.role !== Role.UNIVERSITY_ADMIN &&
+  invoice.property?.manager?.id !== user.id
+) {
+  throw new ForbiddenException(
+    'You are not authorized to edit invoices for this property.',
+  );
+}
+    if (invoice.status === InvoiceStatus.VOIDED) {
+      throw new BadRequestException('A voided invoice cannot be edited.');
+    }
+
+    if (Number(invoice.paidAmount) > 0 || (invoice.payments?.length ?? 0) > 0) {
+      throw new BadRequestException(
+        'An invoice with recorded payments cannot be edited.',
+      );
+    }
+
+    const rent =
+      dto.rentAmount !== undefined
+        ? Number(dto.rentAmount)
+        : Number(invoice.rentAmount);
+
+    const electricity =
+      dto.electricityAmount !== undefined
+        ? Number(dto.electricityAmount)
+        : Number(invoice.electricityAmount);
+
+    const water =
+      dto.waterAmount !== undefined
+        ? Number(dto.waterAmount)
+        : Number(invoice.waterAmount);
+
+    const other =
+      dto.otherFees !== undefined
+        ? Number(dto.otherFees)
+        : Number(invoice.otherFees);
+
+    invoice.rentAmount = rent;
+    invoice.electricityAmount = electricity;
+    invoice.waterAmount = water;
+    invoice.otherFees = other;
+    invoice.totalAmount = rent + electricity + water + other;
+
+    if (dto.dueDate !== undefined) {
+      invoice.dueDate = new Date(dto.dueDate);
+    }
+
+    if (dto.utilitySplitNotes !== undefined) {
+      invoice.utilitySplitNotes = dto.utilitySplitNotes;
+    }
+
+    invoice.paidAmount = 0;
+    invoice.status = InvoiceStatus.UNPAID;
+
+    return this.invoiceRepo.save(invoice);
+  }
+
+  async voidInvoice(id: string, user: User): Promise<Invoice> {
+    const invoice = await this.findInvoiceById(id);
+if (
+  user.role !== Role.UNIVERSITY_ADMIN &&
+  invoice.property?.manager?.id !== user.id
+) {
+  throw new ForbiddenException(
+    'You are not authorized to void invoices for this property.',
+  );
+}
+    if (invoice.status === InvoiceStatus.VOIDED) {
+      throw new BadRequestException('This invoice is already voided.');
+    }
+
+    if (Number(invoice.paidAmount) > 0 || (invoice.payments?.length ?? 0) > 0) {
+      throw new BadRequestException(
+        'An invoice with recorded payments cannot be voided.',
+      );
+    }
+
+    invoice.status = InvoiceStatus.VOIDED;
+
+    return this.invoiceRepo.save(invoice);
+  }
+
   async recordPayment(dto: RecordPaymentDto, recordedBy?: User): Promise<Payment> {
     const invoice = await this.findInvoiceById(
       dto.invoiceId,
       recordedBy?.role === Role.STUDENT ? recordedBy.id : undefined,
     );
+    if (invoice.status === InvoiceStatus.VOIDED) {
+  throw new BadRequestException(
+    'Payments cannot be recorded against a voided invoice.',
+  );
+}
     const outstandingBalance = Number(invoice.totalAmount) - Number(invoice.paidAmount);
     if (dto.amount <= 0 || dto.amount > outstandingBalance) {
       throw new BadRequestException('Payment amount must be greater than zero and no more than the outstanding balance');

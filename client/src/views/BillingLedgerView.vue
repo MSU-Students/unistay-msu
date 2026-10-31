@@ -11,6 +11,7 @@ import {
   Calculator,
   CreditCard,
   Droplet,
+  Receipt,
   Zap,
 } from 'lucide-vue-next';
 
@@ -23,6 +24,32 @@ interface UtilitySplitResult {
 const billingStore = useBillingStore();
 const networkStore = useNetworkStore();
 const authStore = useAuthStore();
+
+const canCreateInvoices = computed(
+  () =>
+    authStore.user?.role === 'property_manager' ||
+    authStore.user?.role === 'university_admin',
+);
+const selectedPropertyId = ref('');
+const selectedTenantId = ref('');
+const selectedUnitId = ref('');
+const rentAmount = ref<number | null>(null);
+const electricityAmount = ref(0);
+const waterAmount = ref(0);
+const otherFees = ref(0);
+const dueDate = ref('');
+const utilitySplitNotes = ref('');
+const creatingInvoice = ref(false);
+const loadingInvoiceOptions = ref(false);
+const invoiceFormError = ref<string | null>(null);
+const invoiceFormSuccess = ref<string | null>(null);
+const invoiceOptionsError = ref<string | null>(null);
+const selectedTenantOption = computed(() =>
+  billingStore.invoiceTenants.find(
+    (option) => option.tenant.id === selectedTenantId.value,
+  ),
+);
+const eligibleUnits = computed(() => selectedTenantOption.value?.units ?? []);
 const housingStore = useHousingStore();
 
 const electricBill = ref(3600);
@@ -55,6 +82,20 @@ const selectedBalance = computed(() =>
 onMounted(() => {
   void billingStore.fetchInvoices();
   void calculateSplit();
+
+  if (canCreateInvoices.value) {
+    loadingInvoiceOptions.value = true;
+    billingStore
+      .fetchInvoiceProperties()
+      .catch((error: unknown) => {
+        invoiceOptionsError.value = requestErrorMessage(
+          error,
+          'Unable to load properties for invoice creation.',
+        );
+      })
+      .finally(() => {
+        loadingInvoiceOptions.value = false;
+      });
   if (authStore.isAdmin) {
     void housingStore.fetchProperties();
     void fetchFinanceSummary();
@@ -64,6 +105,107 @@ onMounted(() => {
 watch(selectedInvoiceId, () => {
   paymentAmount.value = selectedBalance.value;
 });
+
+function requestErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error !== 'object' || error === null || !('response' in error)) {
+    return fallback;
+  }
+  const response = (
+    error as { response?: { data?: { message?: string | string[] } } }
+  ).response;
+  const message = response?.data?.message;
+  return Array.isArray(message) ? message.join(', ') : message || fallback;
+}
+
+async function loadEligibleTenants() {
+  selectedTenantId.value = '';
+  selectedUnitId.value = '';
+  rentAmount.value = null;
+  billingStore.invoiceTenants = [];
+  invoiceOptionsError.value = null;
+  if (!selectedPropertyId.value) return;
+
+  loadingInvoiceOptions.value = true;
+  try {
+    await billingStore.fetchInvoiceTenants(selectedPropertyId.value);
+  } catch (error) {
+    invoiceOptionsError.value = requestErrorMessage(
+      error,
+      'Unable to load eligible tenants for this property.',
+    );
+  } finally {
+    loadingInvoiceOptions.value = false;
+  }
+}
+
+function updateRentFromUnit() {
+  const unit = eligibleUnits.value.find(
+    (eligibleUnit) => eligibleUnit.id === selectedUnitId.value,
+  );
+  rentAmount.value = unit?.monthlyRate ?? null;
+}
+
+async function submitInvoice() {
+  invoiceFormError.value = null;
+  invoiceFormSuccess.value = null;
+  const amounts = [
+    rentAmount.value,
+    electricityAmount.value,
+    waterAmount.value,
+    otherFees.value,
+  ];
+
+  if (!selectedPropertyId.value || !selectedTenantId.value || !dueDate.value) {
+    invoiceFormError.value =
+      'Select a property and tenant, and enter a due date.';
+    return;
+  }
+  if (
+    amounts.some(
+      (amount) =>
+        amount === null ||
+        !Number.isFinite(amount) ||
+        amount < 0 ||
+        amount > 99999999.99 ||
+        !/^\d+(\.\d{1,2})?$/.test(String(amount)),
+    )
+  ) {
+    invoiceFormError.value =
+      'Enter valid, nonnegative charge amounts with no more than two decimal places.';
+    return;
+  }
+
+  creatingInvoice.value = true;
+  try {
+    await billingStore.createInvoice({
+      tenantId: selectedTenantId.value,
+      propertyId: selectedPropertyId.value,
+      ...(selectedUnitId.value ? { unitId: selectedUnitId.value } : {}),
+      rentAmount: rentAmount.value as number,
+      electricityAmount: electricityAmount.value,
+      waterAmount: waterAmount.value,
+      otherFees: otherFees.value,
+      dueDate: dueDate.value,
+      utilitySplitNotes: utilitySplitNotes.value || undefined,
+    });
+    invoiceFormSuccess.value = 'Invoice created successfully.';
+    selectedTenantId.value = '';
+    selectedUnitId.value = '';
+    rentAmount.value = null;
+    electricityAmount.value = 0;
+    waterAmount.value = 0;
+    otherFees.value = 0;
+    dueDate.value = '';
+    utilitySplitNotes.value = '';
+  } catch (error) {
+    invoiceFormError.value = requestErrorMessage(
+      error,
+      'Unable to create the invoice. Please try again.',
+    );
+  } finally {
+    creatingInvoice.value = false;
+  }
+}
 
 async function calculateSplit() {
   splitError.value = null;
@@ -144,6 +286,203 @@ async function fetchFinanceSummary() {
         </p>
       </div>
 
+
+      <section
+        v-if="canCreateInvoices"
+        class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4"
+      >
+        <div class="flex items-center space-x-2 text-slate-800 font-bold text-sm border-b pb-2">
+          <Receipt class="w-4 h-4 text-msu-maroon" />
+          <h2>Create monthly rent invoice</h2>
+        </div>
+
+        <p class="text-xs text-slate-600">
+          Select a property and an active tenant. The optional unit is limited to the tenant's active leases there.
+        </p>
+
+        <div
+          v-if="invoiceFormSuccess"
+          role="status"
+          class="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-lg"
+        >
+          {{ invoiceFormSuccess }}
+        </div>
+        <div
+          v-if="invoiceFormError || invoiceOptionsError"
+          role="alert"
+          class="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg"
+        >
+          {{ invoiceFormError || invoiceOptionsError }}
+        </div>
+
+        <form class="space-y-4" @submit.prevent="submitInvoice">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div>
+              <label for="invoice-property" class="font-medium text-slate-600 block mb-1">
+                Property
+              </label>
+              <select
+                id="invoice-property"
+                v-model="selectedPropertyId"
+                required
+                :disabled="loadingInvoiceOptions || creatingInvoice"
+                class="w-full px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-msu-maroon"
+                @change="loadEligibleTenants"
+              >
+                <option value="" disabled>Select a property</option>
+                <option
+                  v-for="property in billingStore.invoiceProperties"
+                  :key="property.id"
+                  :value="property.id"
+                >
+                  {{ property.name }}
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <label for="invoice-tenant" class="font-medium text-slate-600 block mb-1">
+                Active tenant
+              </label>
+              <select
+                id="invoice-tenant"
+                v-model="selectedTenantId"
+                required
+                :disabled="!selectedPropertyId || loadingInvoiceOptions || creatingInvoice"
+                class="w-full px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-msu-maroon"
+                @change="selectedUnitId = ''; rentAmount = null"
+              >
+                <option value="" disabled>Select a tenant</option>
+                <option
+                  v-for="option in billingStore.invoiceTenants"
+                  :key="option.tenant.id"
+                  :value="option.tenant.id"
+                >
+                  {{ option.tenant.fullName }}
+                </option>
+              </select>
+              <p
+                v-if="selectedPropertyId && !loadingInvoiceOptions && billingStore.invoiceTenants.length === 0"
+                class="mt-1 text-[11px] text-slate-500"
+              >
+                No tenants with active leases were found for this property.
+              </p>
+            </div>
+
+            <div>
+              <label for="invoice-unit" class="font-medium text-slate-600 block mb-1">
+                Unit (optional)
+              </label>
+              <select
+                id="invoice-unit"
+                v-model="selectedUnitId"
+                :disabled="!selectedTenantId || creatingInvoice"
+                class="w-full px-3 py-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-msu-maroon"
+                @change="updateRentFromUnit"
+              >
+                <option value="">No unit specified</option>
+                <option
+                  v-for="unit in eligibleUnits"
+                  :key="unit.id"
+                  :value="unit.id"
+                >
+                  {{ unit.roomNumber }} — ₱{{ unit.monthlyRate }}/month
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+            <div>
+              <label for="invoice-rent" class="font-medium text-slate-600 block mb-1">
+                Monthly rent (₱)
+              </label>
+              <input
+                id="invoice-rent"
+                v-model.number="rentAmount"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-msu-maroon"
+              />
+            </div>
+            <div>
+              <label for="invoice-electricity" class="font-medium text-slate-600 block mb-1">
+                Electricity (₱)
+              </label>
+              <input
+                id="invoice-electricity"
+                v-model.number="electricityAmount"
+                type="number"
+                min="0"
+                step="0.01"
+                class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-msu-maroon"
+              />
+            </div>
+            <div>
+              <label for="invoice-water" class="font-medium text-slate-600 block mb-1">
+                Water (₱)
+              </label>
+              <input
+                id="invoice-water"
+                v-model.number="waterAmount"
+                type="number"
+                min="0"
+                step="0.01"
+                class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-msu-maroon"
+              />
+            </div>
+            <div>
+              <label for="invoice-other-fees" class="font-medium text-slate-600 block mb-1">
+                Other charges (₱)
+              </label>
+              <input
+                id="invoice-other-fees"
+                v-model.number="otherFees"
+                type="number"
+                min="0"
+                step="0.01"
+                class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-msu-maroon"
+              />
+            </div>
+            <div>
+              <label for="invoice-due-date" class="font-medium text-slate-600 block mb-1">
+                Due date
+              </label>
+              <input
+                id="invoice-due-date"
+                v-model="dueDate"
+                type="date"
+                required
+                class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-msu-maroon"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label for="invoice-utility-notes" class="font-medium text-slate-600 block mb-1 text-xs">
+              Utility split notes (optional)
+            </label>
+            <input
+              id="invoice-utility-notes"
+              v-model="utilitySplitNotes"
+              type="text"
+              class="w-full px-3 py-2 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-msu-maroon"
+            />
+          </div>
+
+          <button
+            type="submit"
+            :disabled="creatingInvoice || loadingInvoiceOptions || !billingStore.invoiceProperties.length"
+            class="bg-msu-maroon hover:opacity-90 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors"
+          >
+            {{ creatingInvoice ? 'Creating invoice...' : 'Create invoice' }}
+          </button>
+        </form>
+      </section>
+
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 print-hidden">
       <section v-if="authStore.isAdmin" class="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -214,7 +553,9 @@ async function fetchFinanceSummary() {
             <Calculator class="h-4 w-4 text-msu-maroon" />
             <span>Shared Utility Splitter</span>
           </div>
+
           <div class="space-y-3 text-xs">
+
             <label class="block font-medium text-slate-600">
               <span class="mb-1 flex items-center"><Zap class="mr-1 h-3.5 w-3.5 text-amber-500" />Total dorm electric bill (₱)</span>
               <input v-model.number="electricBill" type="number" min="0" @input="calculateSplit" class="w-full rounded border border-slate-300 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-msu-maroon" />

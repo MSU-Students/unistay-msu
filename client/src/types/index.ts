@@ -63,6 +63,8 @@ export interface Property {
   availableSlots?: number;
   totalSlots?: number;
   units?: Unit[];
+  availableSlots?: number;
+  totalSlots?: number;
 }
 
 export type ApplicationStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
@@ -137,6 +139,26 @@ export interface Invoice {
   createdAt: string;
 }
 
+export interface InvoiceTenantOption {
+  tenant: Pick<User, 'id' | 'fullName'>;
+  units: {
+    id: string;
+    roomNumber: string;
+    monthlyRate: number;
+  }[];
+}
+
+export interface CreateInvoiceInput {
+  tenantId: string;
+  propertyId: string;
+  unitId?: string;
+  rentAmount: number;
+  electricityAmount?: number;
+  waterAmount?: number;
+  otherFees?: number;
+  dueDate: string;
+  utilitySplitNotes?: string;
+}
 export type FinancePaymentStatus = InvoiceStatus | 'all';
 
 export interface FinanceSummaryQuery {
