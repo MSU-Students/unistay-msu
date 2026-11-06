@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { GigStatus } from '../entities/gig.entity';
 
 export class CreateGigDto {
@@ -33,7 +33,37 @@ export class ApplyForGigDto {
 }
 
 export class UpdateGigStatusDto {
-  @ApiProperty({ enum: GigStatus })
+  @ApiProperty({ enum: GigStatus, example: GigStatus.COMPLETED })
   @IsEnum(GigStatus)
   status: GigStatus;
+
+  @ApiPropertyOptional({ example: 'Package safely delivered to room 204.' })
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @ApiPropertyOptional({ example: 'Unexpected class laboratory schedule.' })
+  @IsOptional()
+  @IsString()
+  cancellationReason?: string;
 }
+
+export class CreateGigNoteDto {
+  @ApiProperty({ example: 'I have arrived at CNSM library and picked up the book.' })
+  @IsString()
+  @IsNotEmpty()
+  message: string;
+}
+
+export class GigQueryDto {
+  @ApiPropertyOptional({ example: 'Delivery & Errands' })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional({ enum: GigStatus, example: GigStatus.OPEN })
+  @IsOptional()
+  @IsEnum(GigStatus)
+  status?: GigStatus;
+}
+
