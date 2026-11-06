@@ -2,20 +2,28 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { BillingService } from './billing.service';
 import { UtilitySplitterService } from './utility-splitter.service';
-import { CalculateUtilitySplitDto, CreateInvoiceDto, RecordPaymentDto } from './dto/billing.dto';
+import {
+  CalculateUtilitySplitDto,
+  CreateInvoiceDto,
+  RecordPaymentDto,
+  UpdateInvoiceDto,
+} from './dto/billing.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { User } from '../users/entities/user.entity';
+import { FinanceSummaryQueryDto, FinanceSummaryResponseDto } from './dto/finance.dto';
 
 @ApiTags('Billing & Utility Splitting')
 @ApiBearerAuth()
@@ -25,7 +33,7 @@ export class BillingController {
   constructor(
     private readonly billingService: BillingService,
     private readonly utilitySplitter: UtilitySplitterService,
-  ) {}
+) {}
 
   @Get('invoices')
   @ApiOperation({ summary: 'List all invoices for tenant or property manager' })
@@ -48,9 +56,31 @@ export class BillingController {
   @Post('invoices')
   @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
   @ApiOperation({ summary: 'Generate a new invoice with rent & utilities' })
-  async createInvoice(@Body() dto: CreateInvoiceDto) {
-    return this.billingService.createInvoice(dto);
+  async createInvoice(
+    @Body() dto: CreateInvoiceDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.billingService.createInvoice(dto, user);
   }
+  @Patch('invoices/:id')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Edit an unpaid invoice and recalculate its total' })
+async updateInvoice(
+  @Param('id') id: string,
+  @Body() dto: UpdateInvoiceDto,
+  @CurrentUser() user: User,
+) {
+  return this.billingService.updateInvoice(id, dto, user);
+}
+  @Post('invoices/:id/void')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Void an unpaid invoice without deleting its record' })
+async voidInvoice(
+  @Param('id') id: string,
+  @CurrentUser() user: User,
+) {
+  return this.billingService.voidInvoice(id, user);
+}
 
   @Post('payments')
   @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN, Role.STUDENT)
@@ -70,5 +100,13 @@ export class BillingController {
       totalWater: dto.totalWaterBill,
       occupantCount: dto.occupantCount,
     });
+  }
+
+  // Admin financial summary endpoint
+  @Get('admin/summary')
+  @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Admin financial summary: collected, outstanding, overdue with filters and anomalies' })
+  async getFinancialSummary(@Query() query: FinanceSummaryQueryDto): Promise<FinanceSummaryResponseDto> {
+    return this.billingService.getFinancialSummary(query);
   }
 }

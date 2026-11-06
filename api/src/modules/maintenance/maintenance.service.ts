@@ -5,6 +5,7 @@ import { MaintenanceTicket, OutageReport, TicketStatus } from './entities/ticket
 import { CreateOutageReportDto, CreateTicketDto, UpdateTicketStatusDto } from './dto/maintenance.dto';
 import { User } from '../users/entities/user.entity';
 import { HousingService } from '../housing/housing.service';
+import { Unit } from '../housing/entities/property.entity';
 
 @Injectable()
 export class MaintenanceService {
@@ -30,11 +31,18 @@ export class MaintenanceService {
     return qb.getMany();
   }
 
-  async findTicketById(id: string): Promise<MaintenanceTicket> {
-    const ticket = await this.ticketRepo.findOne({
-      where: { id },
-      relations: ['reporter', 'property', 'unit'],
-    });
+  async findTicketById(id: string, reporterId?: string): Promise<MaintenanceTicket> {
+    const qb = this.ticketRepo.createQueryBuilder('ticket')
+      .leftJoinAndSelect('ticket.reporter', 'reporter')
+      .leftJoinAndSelect('ticket.property', 'property')
+      .leftJoinAndSelect('ticket.unit', 'unit')
+      .where('ticket.id = :id', { id });
+
+    if (reporterId) {
+      qb.andWhere('reporter.id = :reporterId', { reporterId });
+    }
+
+    const ticket = await qb.getOne();
     if (!ticket) {
       throw new NotFoundException(`Ticket with ID ${id} not found`);
     }
@@ -42,7 +50,26 @@ export class MaintenanceService {
   }
 
   async createTicket(dto: CreateTicketDto, reporter: User): Promise<MaintenanceTicket> {
-    const property = await this.housingService.findPropertyById(dto.propertyId);
+    let propertyId = dto.propertyId;
+    let unit: Unit | undefined = undefined;
+
+    // Retrieve resident's assigned residence
+    const residence = await this.housingService.getMyResidence(reporter);
+    if (residence) {
+      propertyId = propertyId || residence.property.id;
+      unit = residence.unit;
+    }
+
+    if (dto.unitId) {
+      try {
+        unit = await this.housingService.findUnitById(dto.unitId);
+      } catch {
+        // Fall back to residence.unit if provided unitId lookup fails
+      }
+    }
+
+    const property = await this.housingService.findPropertyById(propertyId);
+
     const ticket = this.ticketRepo.create({
       title: dto.title,
       description: dto.description,
@@ -51,6 +78,7 @@ export class MaintenanceService {
       photoUrls: dto.photoUrls || [],
       reporter,
       property,
+      unit,
       status: TicketStatus.OPEN,
     });
     return this.ticketRepo.save(ticket);

@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/auth';
 import {
   LayoutDashboard,
   Building2,
+  ClipboardList,
   Receipt,
   Wrench,
   CalendarDays,
@@ -19,6 +20,7 @@ const authStore = useAuthStore();
 const navigation = computed(() => [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
   { name: 'Housing Directory', path: '/housing', icon: Building2 },
+  { name: 'Housing Application', path: '/housing/apply', icon: ClipboardList },
   ...(authStore.isManager
     ? [
         {
