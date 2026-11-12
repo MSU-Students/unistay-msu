@@ -22,6 +22,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { DisputesModule } from './modules/disputes/disputes.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { AppService } from './app.service';
     MaintenanceModule,
     FacilitiesModule,
     GigsModule,
+    DisputesModule,
     SyncModule,
   ],
   controllers: [AppController],
