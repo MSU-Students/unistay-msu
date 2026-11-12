@@ -10,15 +10,45 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
   const outages = ref<OutageReport[]>([]);
   const loading = ref<boolean>(false);
 
-  async function fetchTickets() {
+  async function fetchTickets(filters?: {
+    startDate?: string;
+    endDate?: string;
+  }) {
     loading.value = true;
+
     try {
-      const res = await apiClient.get('/maintenance/tickets');
+      const res = await apiClient.get('/maintenance/tickets', {
+        params: {
+          ...(filters?.startDate && { startDate: filters.startDate }),
+          ...(filters?.endDate && { endDate: filters.endDate }),
+        },
+      });
+
       tickets.value = res.data.data;
-      await db.tickets.clear();
-      await db.tickets.bulkPut(tickets.value);
+
+      // Update the offline cache only when fetching all tickets
+      if (!filters?.startDate && !filters?.endDate) {
+        await db.tickets.clear();
+        await db.tickets.bulkPut(tickets.value);
+      }
     } catch (err) {
-      tickets.value = await db.tickets.toArray();
+      const cachedTickets = await db.tickets.toArray();
+
+      tickets.value = cachedTickets.filter((ticket) => {
+        const ticketDate = new Date(ticket.createdAt)
+          .toISOString()
+          .slice(0, 10);
+
+        if (filters?.startDate && ticketDate < filters.startDate) {
+          return false;
+        }
+
+        if (filters?.endDate && ticketDate > filters.endDate) {
+          return false;
+        }
+
+        return true;
+      });
     } finally {
       loading.value = false;
     }
