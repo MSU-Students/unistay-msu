@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MaintenanceTicket, OutageReport, TicketStatus } from './entities/ticket.entity';
@@ -24,7 +28,15 @@ export class MaintenanceService {
 async findAllTickets(
   reporterId?: string,
   managerId?: string,
+  startDate?: string,
+  endDate?: string,
 ): Promise<MaintenanceTicket[]> {
+  if (startDate && endDate && startDate > endDate) {
+    throw new BadRequestException(
+      'Start date cannot be later than end date.',
+    );
+  }
+
   const qb = this.ticketRepo
     .createQueryBuilder('ticket')
     .leftJoinAndSelect('ticket.reporter', 'reporter')
@@ -40,6 +52,22 @@ async findAllTickets(
   if (managerId) {
     qb.andWhere('manager.id = :managerId', { managerId });
   }
+
+  if (startDate) {
+    qb.andWhere('ticket.createdAt >= :startDate', {
+      startDate: new Date(`${startDate}T00:00:00.000Z`),
+    });
+  }
+
+  if (endDate) {
+    const endDateExclusive = new Date(`${endDate}T00:00:00.000Z`);
+    endDateExclusive.setUTCDate(endDateExclusive.getUTCDate() + 1);
+
+    qb.andWhere('ticket.createdAt < :endDate', {
+      endDate: endDateExclusive,
+    });
+  }
+
   return qb.getMany();
 }
 

@@ -5,6 +5,7 @@ import {
   Patch,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -14,6 +15,7 @@ import {
   CreateTicketDto,
   UpdateTicketStatusDto,
   AssignMaintenanceTicketDto,
+  GetTicketsQueryDto,
 } from './dto/maintenance.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -31,16 +33,35 @@ export class MaintenanceController {
   constructor(private readonly maintenanceService: MaintenanceService) {}
 
   @Get('tickets')
-  @ApiOperation({ summary: 'List maintenance tickets' })
-  async getTickets(@CurrentUser() user: User) {
+  @ApiOperation({ summary: 'List maintenance tickets with optional date filters' })
+  async getTickets(
+    @CurrentUser() user: User,
+    @Query() query: GetTicketsQueryDto,
+  ) {
     if (user.role === Role.STUDENT) {
-      return this.maintenanceService.findAllTickets(user.id);
-    }
-    if (user.role === Role.PROPERTY_MANAGER) {
-      return this.maintenanceService.findAllTickets(undefined, user.id); 
+      return this.maintenanceService.findAllTickets(
+        user.id,
+        undefined,
+        query.startDate,
+        query.endDate,
+      );
     }
 
-    return this.maintenanceService.findAllTickets();
+    if (user.role === Role.PROPERTY_MANAGER) {
+      return this.maintenanceService.findAllTickets(
+        undefined,
+        user.id,
+        query.startDate,
+        query.endDate,
+      );
+    }
+
+    return this.maintenanceService.findAllTickets(
+      undefined,
+      undefined,
+      query.startDate,
+      query.endDate,
+    );
   }
 
   @Get('tickets/:id')

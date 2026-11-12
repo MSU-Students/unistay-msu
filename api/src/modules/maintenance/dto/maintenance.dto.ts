@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsDateString, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { TicketCategory, TicketPriority, TicketStatus } from '../entities/ticket.entity';
@@ -74,4 +75,18 @@ export class CreateOutageReportDto {
   @IsOptional()
   @IsDateString()
   estimatedRestoration?: string;
+}
+
+export class GetTicketsQueryDto {
+  @ApiPropertyOptional({ example: '2026-11-01', description: 'Filter tickets created on or after this date' })
+  @Transform(({ value }) => value?.trim() === '' ? undefined : value)
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiPropertyOptional({ example: '2026-11-12', description: 'Filter tickets created on or before this date' })
+  @Transform(({ value }) => value?.trim() === '' ? undefined : value)
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
 }
