@@ -10,6 +10,7 @@ import {
   CreateApplicationDto,
   CreatePropertyDto,
   UpdatePropertyDto,
+} from './dto/housing.dto';
 import {
   Application,
   ApplicationStatus,

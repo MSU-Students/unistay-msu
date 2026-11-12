@@ -14,6 +14,32 @@ const priority = ref('medium');
 const propertyId = ref('');
 const message = ref<string | null>(null);
 
+const startDate = ref('');
+const endDate = ref('');
+const filterError = ref<string | null>(null);
+
+async function applyDateFilter() {
+  if (startDate.value && endDate.value && startDate.value > endDate.value) {
+    filterError.value = 'Start date cannot be later than end date.';
+    return;
+  }
+
+  filterError.value = null;
+
+  await maintStore.fetchTickets({
+    startDate: startDate.value || undefined,
+    endDate: endDate.value || undefined,
+  });
+}
+
+async function clearDateFilter() {
+  startDate.value = '';
+  endDate.value = '';
+  filterError.value = null;
+
+  await maintStore.fetchTickets();
+}
+
 onMounted(() => {
   maintStore.fetchTickets();
   maintStore.fetchOutages();
@@ -126,6 +152,57 @@ async function handleSubmitTicket() {
           </button>
         </div>
       </div>
+
+<!-- Date Range Filter -->
+<div class="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+  <h2 class="text-sm font-bold text-slate-900">Filter Tickets by Date</h2>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div>
+      <label class="block text-xs font-medium text-slate-700 mb-1">
+        Start Date
+      </label>
+      <input
+        v-model="startDate"
+        type="date"
+        :max="endDate || undefined"
+        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+      />
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-slate-700 mb-1">
+        End Date
+      </label>
+      <input
+        v-model="endDate"
+        type="date"
+        :min="startDate || undefined"
+        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+      />
+    </div>
+  </div>
+
+  <p v-if="filterError" class="text-xs text-red-600">
+    {{ filterError }}
+  </p>
+
+  <div class="flex gap-2">
+    <button
+      @click="applyDateFilter"
+      class="bg-msu-maroon hover:bg-msu-darkmaroon text-white text-xs font-semibold px-4 py-2 rounded-lg"
+    >
+      Apply Filter
+    </button>
+
+    <button
+      @click="clearDateFilter"
+      class="border border-slate-300 text-slate-700 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-slate-50"
+    >
+      Clear
+    </button>
+  </div>
+</div>
 
       <!-- Tickets List -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
