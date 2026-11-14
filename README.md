@@ -5,6 +5,7 @@
 
 ---
 
+
 ## 🏗 Monorepo Architecture
 
 The repository is structured as a TypeScript monorepo with strict shared typing and decoupled client/API architecture:
