@@ -6,6 +6,7 @@ import { db } from '../db';
 
 export const useHousingStore = defineStore('housing', () => {
   const properties = ref<Property[]>([]);
+  const pendingProperties = ref<Property[]>([]);
   const applications = ref<Application[]>([]);
   const residence = ref<StudentResidence | null>(null);
   const loading = ref<boolean>(false);
@@ -23,10 +24,27 @@ export const useHousingStore = defineStore('housing', () => {
       await db.properties.bulkPut(properties.value);
     } catch (err) {
       console.warn('[HousingStore] API unreachable, loading properties from Dexie offline cache...');
-      properties.value = await db.properties.toArray();
+      properties.value = (await db.properties.toArray()).filter((property) => property.isAccredited);
     } finally {
       loading.value = false;
     }
+  }
+
+  async function fetchPendingProperties() {
+    const res = await apiClient.get('/housing/properties/pending');
+    pendingProperties.value = res.data.data;
+  }
+
+  async function reviewProperty(id: string, status: 'approved' | 'rejected', reason?: string): Promise<Property> {
+    const res = await apiClient.patch(`/housing/properties/${id}/accreditation`, {
+      status,
+      reason,
+    });
+    pendingProperties.value = pendingProperties.value.filter((property) => property.id !== id);
+    if (status === 'approved') {
+      await db.properties.put(res.data.data);
+    }
+    return res.data.data;
   }
 
   async function fetchPropertyById(id: string) {
@@ -84,6 +102,7 @@ export const useHousingStore = defineStore('housing', () => {
 
   return {
     properties,
+    pendingProperties,
     applications,
     residence,
     loading,
@@ -91,6 +110,8 @@ export const useHousingStore = defineStore('housing', () => {
     applicationsError,
     selectedProperty,
     fetchProperties,
+    fetchPendingProperties,
+    reviewProperty,
     fetchPropertyById,
     submitApplication,
     fetchMyApplications,

@@ -15,7 +15,7 @@ import {
   CreateApplicationDto,
   CreatePropertyDto,
   UpdateApplicationStatusDto,
-  UpdatePropertyDto,
+  UpdatePropertyAccreditationDto
 } from './dto/housing.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -42,6 +42,13 @@ export class HousingController {
     return this.housingService.findAllProperties({ type, maxPrice });
   }
 
+  @Get('properties/pending')
+  @Roles(Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Get pending property listings for review' })
+  async findPendingProperties() {
+    return this.housingService.findPendingProperties();
+  }
+
   @Public()
   @Get('properties/:id')
   @ApiOperation({ summary: 'Get details for a property' })
@@ -49,6 +56,15 @@ export class HousingController {
     return this.housingService.findPropertyById(id);
   }
 
+  @Patch('properties/:id/accreditation')
+  @Roles(Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Approve or reject a property listing' })
+  async updatePropertyAccreditation(
+    @Param('id') id: string,
+    @Body() dto: UpdatePropertyAccreditationDto,
+  ) {
+    return this.housingService.updatePropertyAccreditation(id, dto.status, dto.reason);
+  }
   @Get('billing-properties')
   @Roles(Role.PROPERTY_MANAGER, Role.UNIVERSITY_ADMIN)
   @ApiOperation({ summary: 'List properties available for invoice creation' })

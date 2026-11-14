@@ -1,3 +1,4 @@
+import { IsNull, Repository } from 'typeorm';
 import {
   BadRequestException,
   ForbiddenException,
@@ -7,10 +8,10 @@ import {
   OnModuleInit
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+
 import { Application, ApplicationStatus, Lease } from './entities/application.entity';
 import { Property, PropertyType, Unit } from './entities/property.entity';
-import { CreateApplicationDto, CreatePropertyDto, UpdatePropertyDto } from './dto/housing.dto';
+import { CreateApplicationDto, CreatePropertyDto } from './dto/housing.dto';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../../common/enums/role.enum';
 
@@ -206,7 +207,8 @@ export class HousingService implements OnModuleInit {
   async findAllProperties(query?: { type?: string; maxPrice?: number }): Promise<Property[]> {
     const qb = this.propertyRepo.createQueryBuilder('property')
       .leftJoinAndSelect('property.units', 'units')
-      .leftJoinAndSelect('property.manager', 'manager');
+      .leftJoinAndSelect('property.manager', 'manager')
+      .andWhere('property.isAccredited = :isAccredited', { isAccredited: true });
 
     if (query?.type) {
       qb.andWhere('property.type = :type', { type: query.type });
@@ -221,9 +223,43 @@ export class HousingService implements OnModuleInit {
     return qb.getMany();
   }
 
+  async findPendingProperties(): Promise<Property[]> {
+    return this.propertyRepo.find({
+      where: { isAccredited: false, rejectionReason: IsNull() },
+      relations: ['units', 'manager'],
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  async updatePropertyAccreditation(
+    id: string,
+    status: 'approved' | 'rejected',
+    reason?: string,
+  ): Promise<Property> {
+    const property = await this.propertyRepo.findOne({ where: { id } });
+    if (!property) {
+      throw new NotFoundException(`Property with ID ${id} not found`);
+    }
+    if (property.isAccredited || property.rejectionReason) {
+      throw new BadRequestException('Only pending listings can be reviewed');
+    }
+    property.isAccredited = status === 'approved';
+    if (status === 'rejected') {
+      const trimmedReason = reason?.trim();
+      if (!trimmedReason) {
+        throw new BadRequestException('A reason is required to reject a listing');
+      }
+      property.rejectionReason = trimmedReason;
+    } else {
+      property.rejectionReason = null;
+    }
+
+    return this.propertyRepo.save(property);
+  }
+
   async findPropertyById(id: string): Promise<Property> {
     const property = await this.propertyRepo.findOne({
-      where: { id },
+      where: { id, isAccredited: true },
       relations: ['units', 'manager'],
     });
 

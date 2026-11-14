@@ -10,6 +10,7 @@ import LoginView from '../views/LoginView.vue';
 import RegisterView from '../views/RegisterView.vue';
 import AuthCallbackView from '../views/AuthCallbackView.vue';
 import ApplicationsReviewView from '../views/ApplicationsReviewView.vue';
+import PendingListingsView from '../views/PendingListingsView.vue';
 import { useAuthStore } from '../stores/auth';
 
 const routes: RouteRecordRaw[] = [
@@ -24,6 +25,16 @@ const routes: RouteRecordRaw[] = [
     name: 'housing',
     component: HousingDirectoryView,
     meta: { requiresAuth: false, title: 'Dormitory & Housing Directory' },
+  },
+  {
+    path: '/housing/pending',
+    name: 'pending-listings',
+    component: PendingListingsView,
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Pending Listings',
+    },
   },
   {
     path: '/housing/apply',
@@ -102,6 +113,8 @@ router.beforeEach(async (to, from, next) => {
   } else if (to.meta.guestOnly && authStore.isAuthenticated) {
     next({ name: 'dashboard' });
   } else if ((to.meta.requiresManager && !authStore.isManager) || !(to.meta.studentOnly && !authStore.isStudent || to.name === 'dashboard')) {
+    next({ name: 'dashboard' });
+  } else if (to.meta.requiresAdmin && !authStore.isAdmin) {
     next({ name: 'dashboard' });
   } else {
     next();

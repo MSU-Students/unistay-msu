@@ -60,11 +60,10 @@ export interface Property {
   minMonthlyRate: number;
   maxMonthlyRate: number;
   isAccredited: boolean;
+  rejectionReason?: string | null;
   availableSlots?: number;
   totalSlots?: number;
   units?: Unit[];
-  availableSlots?: number;
-  totalSlots?: number;
 }
 
 export type ApplicationStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';

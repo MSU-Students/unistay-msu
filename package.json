@@ -36,5 +36,12 @@
     "pwa"
   ],
   "author": "MSU Main Campus Developer Teams",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "allowScripts": {
+    "@nestjs/core@10.4.22": true,
+    "@scarf/scarf": true,
+    "bcrypt": true,
+    "esbuild": true,
+    "vue-demi": true
+  }
 }
