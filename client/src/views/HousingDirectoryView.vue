@@ -133,6 +133,32 @@ const updateSlots = (prop: any, change: number) => {
               >
                 {{ (prop.availableSlots ?? 5) === 0 ? 'Full' : 'Apply Now' }}
               </button>
+              <div class="flex gap-2">
+                <!-- Approve Button -->
+                <button
+                  v-if="!prop.isAccredited"
+                  @click="housingStore.updateAccreditation(prop.id, 'approved')"
+                  class="bg-emerald-600 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1"
+                >
+                  <CheckCircle class="w-3.5 h-3.5" /> Approve
+                </button>
+
+                <!-- Apply Now Button (Disabled if Fully Booked) -->
+                <span
+                  v-if="(prop.availableSlots ?? 5) === 0"
+                  aria-disabled="true"
+                  class="cursor-not-allowed rounded-lg bg-slate-300 px-3 py-1.5 text-xs font-semibold text-white"
+                >
+                  Full
+                </span>
+                <router-link
+                  v-else
+                  :to="{ name: 'housing-application', query: { propertyId: prop.id } }"
+                  class="rounded-lg bg-msu-maroon px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-msu-darkmaroon"
+                >
+                  Apply Now
+                </router-link>
+              </div>
             </div>
           </div>
         </div>

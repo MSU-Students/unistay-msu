@@ -1,5 +1,5 @@
-import { test, describe, beforeEach } from 'node:test';
-import * as assert from 'node:assert';
+import { test, describe, beforeEach } from '@jest/globals';
+import * as assert from 'node:assert/strict';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { Role } from '../../common/enums/role.enum';

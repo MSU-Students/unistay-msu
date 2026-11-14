@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import DashboardView from '../views/DashboardView.vue';
 import HousingDirectoryView from '../views/HousingDirectoryView.vue';
+import HousingApplicationView from '../views/HousingApplicationView.vue';
 import BillingLedgerView from '../views/BillingLedgerView.vue';
 import MaintenanceDeskView from '../views/MaintenanceDeskView.vue';
 import FacilityBookingView from '../views/FacilityBookingView.vue';
@@ -34,6 +35,12 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: true,
       title: 'Pending Listings',
     },
+  },
+  {
+    path: '/housing/apply',
+    name: 'housing-application',
+    component: HousingApplicationView,
+    meta: { requiresAuth: true, studentOnly: true, title: 'Housing Application' },
   },
   {
     path: '/applications/review',
@@ -105,7 +112,7 @@ router.beforeEach(async (to, from, next) => {
     next({ name: 'login', query: { redirect: to.fullPath } });
   } else if (to.meta.guestOnly && authStore.isAuthenticated) {
     next({ name: 'dashboard' });
-  } else if (to.meta.requiresManager && !authStore.isManager) {
+  } else if ((to.meta.requiresManager && !authStore.isManager) || !(to.meta.studentOnly && !authStore.isStudent || to.name === 'dashboard')) {
     next({ name: 'dashboard' });
   } else if (to.meta.requiresAdmin && !authStore.isAdmin) {
     next({ name: 'dashboard' });

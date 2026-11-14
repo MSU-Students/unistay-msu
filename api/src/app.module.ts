@@ -15,7 +15,6 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { FacilitiesModule } from './modules/facilities/facilities.module';
 import { GigsModule } from './modules/gigs/gigs.module';
 import { SyncModule } from './modules/sync/sync.module';
-import { StorageModule } from './modules/storage/storage.module';
 
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -58,7 +57,6 @@ import { AppService } from './app.service';
     FacilitiesModule,
     GigsModule,
     SyncModule,
-    StorageModule,
   ],
   controllers: [AppController],
   providers: [
