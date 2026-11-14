@@ -16,24 +16,61 @@ import {
 
 const route = useRoute();
 const authStore = useAuthStore();
+const defaultNavigationClass = 'text-slate-400 hover:bg-slate-800 hover:text-white';
 
 const navigation = computed(() => [
-  { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { name: 'Housing Directory', path: '/housing', icon: Building2 },
-  { name: 'Housing Application', path: '/housing/apply', icon: ClipboardList },
+  { 
+    name: 'Dashboard', 
+    path: '/', 
+    icon: LayoutDashboard,
+    class: defaultNavigationClass,
+  },
+  { 
+    name: 'Housing Directory', 
+    path: '/housing', 
+    icon: Building2,
+    class: defaultNavigationClass
+  },
+  { 
+    name: 'Housing Application', 
+    path: '/housing/apply', 
+    icon: ClipboardList,
+    class: defaultNavigationClass
+  },
   ...(authStore.isManager
     ? [
         {
           name: 'Applications Review',
           path: '/applications/review',
           icon: ClipboardCheck,
+          class:  'bg-msu-maroon text-white font-semibold'
         },
       ]
     : []),
-  { name: 'Billing & Utilities', path: '/billing', icon: Receipt },
-  { name: 'Maintenance Desk', path: '/maintenance', icon: Wrench },
-  { name: 'Facility Bookings', path: '/facilities', icon: CalendarDays },
-  { name: 'Student Gig Board', path: '/gigs', icon: Briefcase },
+  { 
+    name: 'Billing & Utilities', 
+    path: '/billing', 
+    icon: Receipt,
+    class: defaultNavigationClass
+  },
+  { 
+    name: 'Maintenance Desk', 
+    path: '/maintenance', 
+    icon: Wrench,
+    class: defaultNavigationClass
+  },
+  { 
+    name: 'Facility Bookings', 
+    path: '/facilities', 
+    icon: CalendarDays,
+    class: defaultNavigationClass
+  },
+  { 
+    name: 'Student Gig Board', 
+    path: '/gigs', 
+    icon: Briefcase,
+    class: defaultNavigationClass
+  },
 ]);
 </script>
 
@@ -51,11 +88,7 @@ const navigation = computed(() => [
         :key="item.path"
         :to="item.path"
         :class="[
-          route.path === item.path ||
-          (item.path === '/applications/review' &&
-            route.path.startsWith('/applications/review'))
-            ? 'bg-msu-maroon text-white font-semibold'
-            : 'text-slate-400 hover:bg-slate-800 hover:text-white',
+          item.class,
           'flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
         ]"
       >

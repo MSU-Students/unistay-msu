@@ -101,7 +101,7 @@ router.beforeEach(async (to, from, next) => {
     next({ name: 'login', query: { redirect: to.fullPath } });
   } else if (to.meta.guestOnly && authStore.isAuthenticated) {
     next({ name: 'dashboard' });
-  } else if ((to.meta.requiresManager && !authStore.isManager) || !(to.meta.studentOnly && !authStore.isStudent)) {
+  } else if ((to.meta.requiresManager && !authStore.isManager) || !(to.meta.studentOnly && !authStore.isStudent || to.name === 'dashboard')) {
     next({ name: 'dashboard' });
   } else {
     next();
