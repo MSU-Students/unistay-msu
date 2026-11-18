@@ -12,6 +12,8 @@ import {
   CreditCard,
   Droplet,
   Receipt,
+  TrendingUp,
+  AlertCircle,
   Zap,
 } from 'lucide-vue-next';
 
@@ -78,6 +80,40 @@ const selectedBalance = computed(() =>
     ? Math.max(0, Number(selectedInvoice.value.totalAmount) - Number(selectedInvoice.value.paidAmount))
     : 0,
 );
+
+const executiveMetrics = computed(() => {
+  const invoices = billingStore.invoices;
+  const totalCollected = invoices.reduce(
+    (total, invoice) => total + Number(invoice.paidAmount || 0),
+    0,
+  );
+  const totalBilled = invoices.reduce(
+    (total, invoice) => total + Number(invoice.totalAmount || 0),
+    0,
+  );
+  const totalOutstanding = invoices.reduce(
+    (total, invoice) => total + outstandingBalance(invoice),
+    0,
+  );
+  const localToday = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 10);
+  const overdueTenantIds = new Set(
+    invoices
+      .filter(
+        (invoice) =>
+          outstandingBalance(invoice) > 0 &&
+          invoice.dueDate.slice(0, 10) < localToday,
+      )
+      .map((invoice) => invoice.tenant.id),
+  );
+  return {
+    totalCollected,
+    totalOutstanding,
+    collectionRate: totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0,
+    overdueAccounts: overdueTenantIds.size,
+  };
+});
 
 onMounted(() => {
   void billingStore.fetchInvoices();
@@ -286,6 +322,37 @@ async function fetchFinanceSummary() {
         </p>
       </div>
 
+      <section v-if="authStore.isAdmin" aria-label="Housing billing key performance indicators"
+        class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <article class="flex items-center gap-4 rounded-xl border border-emerald-200 bg-white p-5 shadow-sm">
+          <div class="rounded-lg bg-emerald-50 p-3 text-emerald-700"><CreditCard class="h-5 w-5" /></div>
+          <div>
+            <p class="text-xs font-medium text-slate-500">Total revenues collected</p>
+            <p class="mt-1 text-xl font-bold text-slate-900">₱{{ formatMoney(executiveMetrics.totalCollected) }}</p>
+          </div>
+        </article>
+        <article class="flex items-center gap-4 rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
+          <div class="rounded-lg bg-amber-50 p-3 text-amber-700"><Receipt class="h-5 w-5" /></div>
+          <div>
+            <p class="text-xs font-medium text-slate-500">Outstanding receivables</p>
+            <p class="mt-1 text-xl font-bold text-slate-900">₱{{ formatMoney(executiveMetrics.totalOutstanding) }}</p>
+          </div>
+        </article>
+        <article class="flex items-center gap-4 rounded-xl border border-blue-200 bg-white p-5 shadow-sm">
+          <div class="rounded-lg bg-blue-50 p-3 text-blue-700"><TrendingUp class="h-5 w-5" /></div>
+          <div>
+            <p class="text-xs font-medium text-slate-500">Overall collection rate</p>
+            <p class="mt-1 text-xl font-bold text-slate-900">{{ executiveMetrics.collectionRate.toFixed(1) }}%</p>
+          </div>
+        </article>
+        <article class="flex items-center gap-4 rounded-xl border border-red-200 bg-white p-5 shadow-sm">
+          <div class="rounded-lg bg-red-50 p-3 text-red-700"><AlertCircle class="h-5 w-5" /></div>
+          <div>
+            <p class="text-xs font-medium text-slate-500">Overdue tenant accounts</p>
+            <p class="mt-1 text-xl font-bold text-slate-900">{{ executiveMetrics.overdueAccounts }}</p>
+          </div>
+        </article>
+      </section>
 
       <section v-if="canCreateInvoices" class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
         <div class="flex items-center space-x-2 text-slate-800 font-bold text-sm border-b pb-2">

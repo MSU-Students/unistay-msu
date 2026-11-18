@@ -1,11 +1,87 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { CheckCircle2, Clock, Download, Printer } from 'lucide-vue-next';
 import { useBillingStore } from '../../stores/billing';
 import { Invoice, Payment } from '../../types';
 
 const billingStore = useBillingStore();
 const printingInvoiceId = ref<string | null>(null);
+const printingLedger = ref(false);
+const searchQuery = ref('');
+const statusFilter = ref('');
+const propertyFilter = ref('');
+const periodFilter = ref('');
+const sortBy = ref<'dueDate' | 'balance' | 'tenant'>('dueDate');
+const sortDirection = ref<'asc' | 'desc'>('asc');
+const currentPage = ref(1);
+const pageSize = ref(10);
+
+const properties = computed(() => {
+  const uniqueProperties = new Map<string, string>();
+  billingStore.invoices.forEach((invoice) => {
+    if (invoice.property?.id && invoice.property.name) {
+      uniqueProperties.set(invoice.property.id, invoice.property.name);
+    }
+  });
+  return [...uniqueProperties].map(([id, name]) => ({ id, name }));
+});
+
+const billingPeriods = computed(() => [...new Set(
+  billingStore.invoices
+    .map((invoice) => invoice.createdAt?.slice(0, 7))
+    .filter((period): period is string => Boolean(period) && /^\d{4}-\d{2}$/.test(period)),
+)].sort().reverse());
+
+function getInvoiceStatus(invoice: Invoice): Invoice['status'] {
+  if (getOutstandingBalance(invoice) <= 0) return 'paid';
+  const dueDate = invoice.dueDate?.slice(0, 10);
+  const localToday = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 10);
+  if (dueDate && dueDate < localToday) return 'overdue';
+  return Number(invoice.paidAmount) > 0 ? 'partially_paid' : 'unpaid';
+}
+
+const filteredInvoices = computed(() => {
+  const query = searchQuery.value.trim().toLocaleLowerCase();
+  return billingStore.invoices.filter((invoice) => {
+    const matchesSearch = !query || [
+      invoice.tenant?.fullName,
+      invoice.unit?.roomNumber,
+      invoice.invoiceNumber,
+    ].some((value) => value?.toLocaleLowerCase().includes(query));
+    const matchesStatus = !statusFilter.value || getInvoiceStatus(invoice) === statusFilter.value;
+    const matchesProperty = !propertyFilter.value || invoice.property?.id === propertyFilter.value;
+    const matchesPeriod = !periodFilter.value || invoice.createdAt?.slice(0, 7) === periodFilter.value;
+    return matchesSearch && matchesStatus && matchesProperty && matchesPeriod;
+  });
+});
+
+const sortedInvoices = computed(() => [...filteredInvoices.value].sort((a, b) => {
+  let comparison = 0;
+  if (sortBy.value === 'balance') {
+    comparison = getOutstandingBalance(a) - getOutstandingBalance(b);
+  } else if (sortBy.value === 'tenant') {
+    comparison = (a.tenant?.fullName || '').localeCompare(b.tenant?.fullName || '');
+  } else {
+    comparison = (a.dueDate || '').localeCompare(b.dueDate || '');
+  }
+  return sortDirection.value === 'asc' ? comparison : -comparison;
+}));
+
+const pageCount = computed(() => Math.max(1, Math.ceil(sortedInvoices.value.length / pageSize.value)));
+const pageInvoices = computed(() => {
+  if (printingLedger.value || printingInvoiceId.value) return sortedInvoices.value;
+  const start = (currentPage.value - 1) * pageSize.value;
+  return sortedInvoices.value.slice(start, start + pageSize.value);
+});
+
+watch([searchQuery, statusFilter, propertyFilter, periodFilter, pageSize], () => {
+  currentPage.value = 1;
+});
+watch(pageCount, (count) => {
+  if (currentPage.value > count) currentPage.value = count;
+});
 
 const csvHeaders = [
   'Invoice number',
@@ -74,7 +150,7 @@ function invoiceToCsvRows(invoice: Invoice) {
     invoice.totalAmount,
     invoice.paidAmount,
     getOutstandingBalance(invoice),
-    invoice.status.replace('_', ' '),
+    getInvoiceStatus(invoice).replace('_', ' '),
     formatDate(invoice.dueDate),
     payment ? formatDate(payment.paymentDate) : '',
     payment?.amount,
@@ -98,7 +174,7 @@ function downloadCsv(invoices: Invoice[], filename: string) {
 }
 
 function downloadLedger() {
-  downloadCsv(billingStore.invoices, 'unistay-rent-payment-ledger.csv');
+  downloadCsv(sortedInvoices.value, 'unistay-rent-payment-ledger.csv');
 }
 
 function downloadInvoice(invoice: Invoice) {
@@ -106,7 +182,12 @@ function downloadInvoice(invoice: Invoice) {
   downloadCsv([invoice], `unistay-invoice-${safeInvoiceNumber}.csv`);
 }
 
-function printLedger() {
+async function printLedger() {
+  printingLedger.value = true;
+  await nextTick();
+  window.addEventListener('afterprint', () => {
+    printingLedger.value = false;
+  }, { once: true });
   window.print();
 }
 
@@ -115,9 +196,7 @@ async function printInvoice(invoiceId: string) {
   await nextTick();
   window.addEventListener(
     'afterprint',
-    () => {
-      printingInvoiceId.value = null;
-    },
+    () => { printingInvoiceId.value = null; },
     { once: true },
   );
   window.print();
@@ -157,6 +236,61 @@ async function printInvoice(invoiceId: string) {
       {{ billingStore.loadError }}
     </div>
 
+    <div class="print-hidden grid grid-cols-1 gap-3 border-b border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <label class="text-xs font-medium text-slate-600">
+        <span class="mb-1 block">Search tenant, room, or invoice</span>
+        <input v-model="searchQuery" type="search" placeholder="Name, room, or invoice number"
+          class="w-full rounded border border-slate-300 px-3 py-2" />
+      </label>
+      <label class="text-xs font-medium text-slate-600">
+        <span class="mb-1 block">Invoice status</span>
+        <select v-model="statusFilter" class="w-full rounded border border-slate-300 bg-white px-3 py-2">
+          <option value="">All statuses</option>
+          <option value="paid">Paid</option>
+          <option value="partially_paid">Partially paid</option>
+          <option value="overdue">Overdue</option>
+          <option value="unpaid">Unpaid</option>
+        </select>
+      </label>
+      <label class="text-xs font-medium text-slate-600">
+        <span class="mb-1 block">Housing facility</span>
+        <select v-model="propertyFilter" class="w-full rounded border border-slate-300 bg-white px-3 py-2">
+          <option value="">All facilities</option>
+          <option v-for="property in properties" :key="property.id" :value="property.id">
+            {{ property.name }}
+          </option>
+        </select>
+      </label>
+      <label class="text-xs font-medium text-slate-600">
+        <span class="mb-1 block">Billing period</span>
+        <input v-model="periodFilter" type="month" :max="billingPeriods[0] || undefined"
+          class="w-full rounded border border-slate-300 px-3 py-2" />
+      </label>
+      <label class="text-xs font-medium text-slate-600">
+        <span class="mb-1 block">Sort by</span>
+        <select v-model="sortBy" class="w-full rounded border border-slate-300 bg-white px-3 py-2">
+          <option value="dueDate">Due date</option>
+          <option value="balance">Outstanding balance</option>
+          <option value="tenant">Occupant name</option>
+        </select>
+      </label>
+      <label class="text-xs font-medium text-slate-600">
+        <span class="mb-1 block">Rows per page</span>
+        <select v-model.number="pageSize" class="w-full rounded border border-slate-300 bg-white px-3 py-2">
+          <option :value="10">10</option>
+          <option :value="25">25</option>
+          <option :value="50">50</option>
+        </select>
+      </label>
+      <div class="flex items-end">
+        <button type="button" @click="sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'"
+          class="rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          :aria-label="`Sort ${sortDirection === 'asc' ? 'ascending' : 'descending'}`">
+          {{ sortDirection === 'asc' ? 'Ascending' : 'Descending' }}
+        </button>
+      </div>
+    </div>
+
     <div class="overflow-x-auto">
       <table class="w-full min-w-[1180px] text-left text-xs">
         <thead class="border-b border-slate-200 bg-slate-50 uppercase tracking-wider text-slate-500">
@@ -179,9 +313,12 @@ async function printInvoice(invoiceId: string) {
           <tr v-else-if="billingStore.invoices.length === 0">
             <td colspan="9" class="px-5 py-8 text-center text-slate-400">No billing records found.</td>
           </tr>
+          <tr v-else-if="filteredInvoices.length === 0">
+            <td colspan="9" class="px-5 py-8 text-center text-slate-400">No invoices match these filters.</td>
+          </tr>
           <template v-else>
             <tr
-              v-for="invoice in billingStore.invoices"
+              v-for="invoice in pageInvoices"
               :key="invoice.id"
               :class="[
                 'align-top hover:bg-slate-50',
@@ -190,6 +327,7 @@ async function printInvoice(invoiceId: string) {
             >
               <td class="px-4 py-3">
                 <div class="font-semibold text-slate-800">{{ invoice.invoiceNumber }}</div>
+                <div class="mt-1 text-slate-500">{{ invoice.tenant?.fullName || 'Tenant' }}</div>
                 <div class="mt-1 text-slate-500">{{ invoice.property?.name || 'Property' }}</div>
                 <div class="text-slate-500">Unit {{ invoice.unit?.roomNumber || '—' }}</div>
               </td>
@@ -211,11 +349,11 @@ async function printInvoice(invoiceId: string) {
               <td class="px-4 py-3">
                 <span
                   :class="[
-                    getStatusClass(invoice.status),
+                    getStatusClass(getInvoiceStatus(invoice)),
                     'whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
                   ]"
                 >
-                  {{ invoice.status.replace('_', ' ') }}
+                  {{ getInvoiceStatus(invoice).replace('_', ' ') }}
                 </span>
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-slate-500">
@@ -274,6 +412,25 @@ async function printInvoice(invoiceId: string) {
           </template>
         </tbody>
       </table>
+    </div>
+    <div class="print-hidden flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 text-xs text-slate-600">
+      <span>
+        {{ sortedInvoices.length ? (currentPage - 1) * pageSize + 1 : 0 }}–{{
+          Math.min(currentPage * pageSize, sortedInvoices.length)
+        }} of {{ sortedInvoices.length }} invoices
+      </span>
+      <div class="flex items-center gap-2">
+        <button type="button" @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage <= 1"
+          class="rounded border border-slate-300 px-3 py-1.5 font-semibold disabled:opacity-40">
+          Previous
+        </button>
+        <span>Page {{ currentPage }} of {{ pageCount }}</span>
+        <button type="button" @click="currentPage = Math.min(pageCount, currentPage + 1)"
+          :disabled="currentPage >= pageCount"
+          class="rounded border border-slate-300 px-3 py-1.5 font-semibold disabled:opacity-40">
+          Next
+        </button>
+      </div>
     </div>
   </section>
 </template>
