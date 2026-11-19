@@ -19,16 +19,17 @@ export class CreateTicketDto {
   @IsEnum(TicketPriority)
   priority: TicketPriority;
 
-  @ApiProperty()
-  @IsUUID()
-  propertyId: string;
-
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' })
   @IsOptional()
-  @IsUUID()
+  @IsString()
+  propertyId?: string;
+
+  @ApiPropertyOptional({ example: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22' })
+  @IsOptional()
+  @IsString()
   unitId?: string;
 
-  @ApiPropertyOptional({ example: ['https://storage.msu.edu/photos/ticket1.jpg'] })
+  @ApiPropertyOptional({ example: ['http://localhost:9000/unistay-media/maintenance/photo1.jpg'] })
   @IsOptional()
   @IsArray()
   photoUrls?: string[];

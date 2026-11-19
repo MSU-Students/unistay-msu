@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { User, UserRole } from '../types';
+import { User, UserRole, RegisterPayload } from '../types';
 import apiClient from '../api/client';
 import { db } from '../db';
 
@@ -29,6 +29,23 @@ export const useAuthStore = defineStore('auth', () => {
       user: newUser,
       token: newToken,
     });
+  }
+
+  async function register(payload: RegisterPayload) {
+    const res = await apiClient.post('/auth/register', payload);
+    const { accessToken, user: authUser } = res.data.data;
+    await setSession(accessToken, authUser);
+    return authUser;
+  }
+
+  async function login(email: string, password: string) {
+    const res = await apiClient.post('/auth/login', {
+      email,
+      password,
+    });
+    const { accessToken, user: authUser } = res.data.data;
+    await setSession(accessToken, authUser);
+    return authUser;
   }
 
   async function devLogin(email: string, role: UserRole = 'student', fullName?: string) {
@@ -68,8 +85,11 @@ export const useAuthStore = defineStore('auth', () => {
     isManager,
     isAdmin,
     setSession,
+    register,
+    login,
     devLogin,
     logout,
     restoreOfflineSession,
   };
 });
+

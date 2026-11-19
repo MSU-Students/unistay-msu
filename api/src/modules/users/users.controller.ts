@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Patch, Body, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Patch,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -30,7 +38,13 @@ export class UsersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get user details by ID' })
-  async findOne(@Param('id') id: string): Promise<User> {
+  async findOne(
+    @Param('id') id: string,
+    @CurrentUser() currentUser: User,
+  ): Promise<User> {
+    if (currentUser.role === Role.STUDENT && currentUser.id !== id) {
+      throw new ForbiddenException('Students can only access their own user information');
+    }
     return this.usersService.findById(id);
   }
 

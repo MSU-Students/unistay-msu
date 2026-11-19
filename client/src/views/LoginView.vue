@@ -2,20 +2,59 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import { ShieldCheck, ArrowRight, UserCheck, KeyRound } from 'lucide-vue-next';
+import {
+  ShieldCheck,
+  ArrowRight,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  UserPlus,
+} from 'lucide-vue-next';
 
 const authStore = useAuthStore();
 const router = useRouter();
+
+const email = ref('');
+const password = ref('');
+const showPassword = ref(false);
 const loading = ref(false);
+const devLoading = ref(false);
+const errorMessage = ref('');
 
 function loginWithGoogle() {
   window.location.href = 'http://localhost:3000/api/v1/auth/google';
 }
 
-async function handleDevLogin(role: 'student' | 'property_manager' | 'university_admin') {
+async function handlePasswordLogin() {
+  errorMessage.value = '';
+  if (!email.value.trim() || !password.value) {
+    errorMessage.value = 'Please provide both email and password.';
+    return;
+  }
+
   loading.value = true;
   try {
-    const email =
+    await authStore.login(email.value.trim(), password.value);
+    router.push({ name: 'dashboard' });
+  } catch (err: any) {
+    const serverMsg = err.response?.data?.error?.message || err.response?.data?.error;
+    if (serverMsg) {
+      errorMessage.value = typeof serverMsg === 'string' ? serverMsg : 'Invalid email or password.';
+    } else {
+      errorMessage.value = 'Unable to sign in. Please verify your credentials or server connection.';
+    }
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function handleDevLogin(role: 'student' | 'property_manager' | 'university_admin') {
+  devLoading.value = true;
+  errorMessage.value = '';
+  try {
+    const devEmail =
       role === 'student'
         ? 'student.msu@msu.edu.ph'
         : role === 'property_manager'
@@ -28,17 +67,17 @@ async function handleDevLogin(role: 'student' | 'property_manager' | 'university
         ? 'Engr. Haron Lucman (Dorm Manager)'
         : 'Dr. Taratingan (Housing Admin)';
 
-    await authStore.devLogin(email, role, name);
+    await authStore.devLogin(devEmail, role, name);
     router.push({ name: 'dashboard' });
   } finally {
-    loading.value = false;
+    devLoading.value = false;
   }
 }
 </script>
 
 <template>
   <div class="min-h-screen bg-slate-100 flex flex-col justify-center items-center p-4">
-    <div class="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+    <div class="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden my-4">
       <!-- Header Banner -->
       <div class="bg-gradient-to-r from-msu-maroon to-msu-darkmaroon p-6 text-white text-center">
         <div class="w-12 h-12 bg-white/20 backdrop-blur rounded-xl mx-auto flex items-center justify-center font-black text-2xl mb-2">
@@ -48,17 +87,95 @@ async function handleDevLogin(role: 'student' | 'property_manager' | 'university
         <p class="text-xs text-slate-200 mt-1">Institutional & Private Housing Management System</p>
         <div class="mt-3 inline-flex items-center space-x-1 text-[11px] bg-white/10 px-2.5 py-1 rounded-full text-amber-200">
           <ShieldCheck class="w-3.5 h-3.5" />
-          <span>Restricted to @msu.edu.ph Accounts</span>
+          <span>Mindanao State University Main Campus</span>
         </div>
       </div>
 
       <!-- Content -->
-      <div class="p-6 space-y-6">
+      <div class="p-6 space-y-5">
+        <!-- Error Banner -->
+        <div
+          v-if="errorMessage"
+          class="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start space-x-2 text-red-700 text-xs"
+        >
+          <AlertCircle class="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <div class="flex-1 font-medium">{{ errorMessage }}</div>
+        </div>
+
+        <!-- Credentials Login Form -->
+        <form @submit.prevent="handlePasswordLogin" class="space-y-3.5">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+            <div class="relative">
+              <Mail class="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input
+                v-model="email"
+                type="email"
+                required
+                placeholder="student.name@msu.edu.ph"
+                class="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-msu-maroon/20 focus:border-msu-maroon"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-semibold text-slate-700">Password</label>
+            </div>
+            <div class="relative">
+              <Lock class="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input
+                v-model="password"
+                :type="showPassword ? 'text' : 'password'"
+                required
+                placeholder="Enter your password"
+                class="w-full pl-9 pr-10 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-msu-maroon/20 focus:border-msu-maroon"
+              />
+              <button
+                type="button"
+                @click="showPassword = !showPassword"
+                class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+              >
+                <Eye v-if="!showPassword" class="w-4 h-4" />
+                <EyeOff v-else class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            :disabled="loading"
+            class="w-full flex items-center justify-center space-x-2 bg-msu-maroon hover:bg-msu-darkmaroon text-white font-semibold py-2 px-4 rounded-xl shadow-sm transition-colors text-sm disabled:opacity-50"
+          >
+            <span v-if="!loading">Sign In</span>
+            <span v-else>Signing in...</span>
+          </button>
+        </form>
+
+        <!-- Student Self-Registration Entry Point -->
+        <div class="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3 text-center">
+          <div class="text-xs text-amber-900 font-semibold mb-1">New to MSU Housing?</div>
+          <p class="text-[11px] text-amber-800 mb-2">Register your own student account in just a minute.</p>
+          <router-link
+            :to="{ name: 'register' }"
+            class="inline-flex items-center justify-center space-x-2 w-full bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 font-bold py-1.5 px-3 rounded-lg text-xs transition-colors shadow-xs"
+          >
+            <UserPlus class="w-3.5 h-3.5 text-msu-maroon" />
+            <span>Register as Student</span>
+          </router-link>
+        </div>
+
+        <div class="relative flex py-1 items-center">
+          <div class="flex-grow border-t border-slate-200"></div>
+          <span class="flex-shrink mx-4 text-slate-400 text-[11px] uppercase tracking-wider">Or continue with</span>
+          <div class="flex-grow border-t border-slate-200"></div>
+        </div>
+
         <!-- Google OAuth Button -->
         <div>
           <button
             @click="loginWithGoogle"
-            class="w-full flex items-center justify-center space-x-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-4 rounded-xl shadow-sm transition-colors text-sm"
+            class="w-full flex items-center justify-center space-x-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-2 px-4 rounded-xl shadow-xs transition-colors text-xs"
           >
             <svg class="w-4 h-4" viewBox="0 0 24 24">
               <path
@@ -84,16 +201,16 @@ async function handleDevLogin(role: 'student' | 'property_manager' | 'university
 
         <div class="relative flex py-1 items-center">
           <div class="flex-grow border-t border-slate-200"></div>
-          <span class="flex-shrink mx-4 text-slate-400 text-xs uppercase tracking-wider">Quick Dev Login (Local)</span>
+          <span class="flex-shrink mx-4 text-slate-400 text-[10px] uppercase tracking-wider">Quick Dev Login (Local)</span>
           <div class="flex-grow border-t border-slate-200"></div>
         </div>
 
         <!-- Dev Mode One-Click Role Logins -->
-        <div class="space-y-2">
+        <div class="space-y-1.5">
           <button
             @click="handleDevLogin('student')"
-            :disabled="loading"
-            class="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-msu-maroon/50 hover:bg-slate-50 transition-colors flex items-center justify-between text-xs"
+            :disabled="devLoading"
+            class="w-full text-left p-2.5 rounded-lg border border-slate-200 hover:border-msu-maroon/50 hover:bg-slate-50 transition-colors flex items-center justify-between text-xs"
           >
             <div>
               <div class="font-bold text-slate-800">Student Account</div>
@@ -104,8 +221,8 @@ async function handleDevLogin(role: 'student' | 'property_manager' | 'university
 
           <button
             @click="handleDevLogin('property_manager')"
-            :disabled="loading"
-            class="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-slate-50 transition-colors flex items-center justify-between text-xs"
+            :disabled="devLoading"
+            class="w-full text-left p-2.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-slate-50 transition-colors flex items-center justify-between text-xs"
           >
             <div>
               <div class="font-bold text-slate-800">Property Manager</div>
@@ -116,8 +233,8 @@ async function handleDevLogin(role: 'student' | 'property_manager' | 'university
 
           <button
             @click="handleDevLogin('university_admin')"
-            :disabled="loading"
-            class="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-slate-50 transition-colors flex items-center justify-between text-xs"
+            :disabled="devLoading"
+            class="w-full text-left p-2.5 rounded-lg border border-slate-200 hover:border-blue-500 hover:bg-slate-50 transition-colors flex items-center justify-between text-xs"
           >
             <div>
               <div class="font-bold text-slate-800">University Administrator</div>

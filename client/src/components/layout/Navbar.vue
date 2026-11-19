@@ -47,13 +47,21 @@ async function handleLogout() {
         </button>
       </div>
 
-      <router-link
-        v-else
-        to="/login"
-        class="bg-msu-maroon text-white px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-msu-darkmaroon transition-colors"
-      >
-        Sign In
-      </router-link>
+      <div v-else class="flex items-center space-x-2">
+        <router-link
+          to="/register"
+          class="border border-msu-maroon/70 text-msu-maroon hover:bg-msu-maroon hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center space-x-1"
+        >
+          <UserIcon class="w-3.5 h-3.5" />
+          <span>Register as Student</span>
+        </router-link>
+        <router-link
+          to="/login"
+          class="bg-msu-maroon text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-msu-darkmaroon transition-colors"
+        >
+          Sign In
+        </router-link>
+      </div>
     </div>
   </header>
 </template>

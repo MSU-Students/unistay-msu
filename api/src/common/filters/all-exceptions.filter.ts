@@ -14,8 +14,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const response = ctx.getResponse() as any;
+    const request = ctx.getRequest() as any;
+
+    const url = request?.url ?? 'unknown';
 
     const status =
       exception instanceof HttpException
@@ -28,14 +30,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
         : (exception as Error)?.message || 'Internal server error';
 
     this.logger.error(
-      `HTTP Status: ${status} Error: ${JSON.stringify(message)} Path: ${request.url}`,
+      `HTTP Status: ${status} Error: ${JSON.stringify(message)} Path: ${url}`,
     );
 
     response.status(status).json({
       success: false,
       statusCode: status,
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path: url,
       error: typeof message === 'object' ? message : { message },
     });
   }
