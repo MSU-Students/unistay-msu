@@ -15,11 +15,52 @@ export interface CreateTicketPayload {
   photoUrls?: string[];
 }
 
+export interface ReportTicket {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  priority: string;
+  status: string;
+  createdAt: string;
+  ageDays: number;
+  isOverdue: boolean;
+  needsEscalation: boolean;
+  property?: { id: string; name: string };
+  reporter?: { fullName?: string };
+}
+
+export interface CountItem {
+  label: string;
+  count: number;
+}
+
+export interface MaintenanceReport {
+  generatedAt: string;
+  thresholds: { longPendingDays: number; overdueDays: number };
+  summary: { total: number; open: number; overdue: number; resolved: number; needsEscalation: number };
+  properties: { id: string; name: string }[];
+  volumeByProperty: CountItem[];
+  volumeByCategory: CountItem[];
+  monthlyTrend: { month: string; count: number }[];
+  tickets: ReportTicket[];
+}
+
+export interface ReportFilters {
+  startDate: string;
+  endDate: string;
+  propertyId: string;
+}
+
 export const useMaintenanceStore = defineStore('maintenance', () => {
   const tickets = ref<MaintenanceTicket[]>([]);
   const outages = ref<OutageReport[]>([]);
   const loading = ref<boolean>(false);
   const isInitialLoaded = ref<boolean>(false);
+
+  const report = ref<MaintenanceReport | null>(null);
+  const reportLoading = ref<boolean>(false);
+  const reportError = ref<string>('');
 
   async function fetchTickets() {
     // 1. Instant hydration from local Dexie store to eliminate flickering
@@ -111,6 +152,27 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
       }
     }
 
+  async function fetchAdminReport(filters: ReportFilters) {
+    reportLoading.value = true;
+    reportError.value = '';
+    try {
+      const params: Record<string, string> = {};
+      if (filters.startDate) params.startDate = filters.startDate;
+      if (filters.endDate) params.endDate = filters.endDate;
+      if (filters.propertyId) params.propertyId = filters.propertyId;
+
+      const res = await apiClient.get('/maintenance/admin/reports', { params });
+      report.value = res.data.data as MaintenanceReport;
+    } catch (error: any) {
+      reportError.value =
+        error?.response?.status === 403
+          ? 'This report is only available to university administrators.'
+          : 'Could not load maintenance reports. Check that the API is running and you are signed in as a university admin.';
+    } finally {
+      reportLoading.value = false;
+    }
+  }
+    
     // Enqueue mutation in Dexie.js sync queue
     const mutationId = await syncEngine.enqueueMutation('CREATE_TICKET', data);
 
@@ -162,5 +224,9 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
     fetchOutages,
     uploadPhoto,
     createTicket,
+    report,
+    reportLoading,
+    reportError,
+    fetchAdminReport,
   };
 });

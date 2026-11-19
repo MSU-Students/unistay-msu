@@ -1,39 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { storeToRefs } from 'pinia';
 import AppLayout from '../components/layout/AppLayout.vue';
-import apiClient from '../api/client';
+import { useMaintenanceStore } from '../stores/maintenance';
 import { AlertTriangle, CalendarDays, CheckCircle2, ClipboardList, RefreshCw, Wrench } from 'lucide-vue-next';
 
-interface ReportTicket {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  priority: string;
-  status: string;
-  createdAt: string;
-  ageDays: number;
-  isOverdue: boolean;
-  needsEscalation: boolean;
-  property?: { id: string; name: string };
-  reporter?: { fullName?: string };
-}
-interface CountItem { label: string; count: number }
-interface ReportData {
-  generatedAt: string;
-  thresholds: { longPendingDays: number; overdueDays: number };
-  summary: { total: number; open: number; overdue: number; resolved: number; needsEscalation: number };
-  properties: { id: string; name: string }[];
-  volumeByProperty: CountItem[];
-  volumeByCategory: CountItem[];
-  monthlyTrend: { month: string; count: number }[];
-  tickets: ReportTicket[];
-}
-
 type TicketTab = 'all' | 'open' | 'overdue' | 'resolved';
-const report = ref<ReportData | null>(null);
-const loading = ref(false);
-const errorMessage = ref('');
+
+const maintenanceStore = useMaintenanceStore();
+const { report, reportLoading: loading, reportError: errorMessage } = storeToRefs(maintenanceStore);
+
 const startDate = ref('');
 const endDate = ref('');
 const propertyId = ref('');
@@ -57,23 +33,12 @@ const maxPropertyCount = computed(() => Math.max(1, ...(report.value?.volumeByPr
 const maxCategoryCount = computed(() => Math.max(1, ...(report.value?.volumeByCategory.map((x) => x.count) ?? [1])));
 const maxMonthlyCount = computed(() => Math.max(1, ...(report.value?.monthlyTrend.map((x) => x.count) ?? [1])));
 
-async function loadReport() {
-  loading.value = true;
-  errorMessage.value = '';
-  try {
-    const params: Record<string, string> = {};
-    if (startDate.value) params.startDate = startDate.value;
-    if (endDate.value) params.endDate = endDate.value;
-    if (propertyId.value) params.propertyId = propertyId.value;
-    const response = await apiClient.get('/maintenance/admin/reports', { params });
-    report.value = response.data.data as ReportData;
-  } catch (error: any) {
-    errorMessage.value = error?.response?.status === 403
-      ? 'This report is only available to university administrators.'
-      : 'Could not load maintenance reports. Check that the API is running and you are signed in as a university admin.';
-  } finally {
-    loading.value = false;
-  }
+function loadReport() {
+  return maintenanceStore.fetchAdminReport({
+    startDate: startDate.value,
+    endDate: endDate.value,
+    propertyId: propertyId.value,
+  });
 }
 
 function clearFilters() {
