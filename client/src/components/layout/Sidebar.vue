@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
@@ -12,30 +11,32 @@ import {
   CalendarDays,
   Briefcase,
   ClipboardCheck,
+  BarChart3,
 } from 'lucide-vue-next';
 
 const route = useRoute();
 const authStore = useAuthStore();
+
 const defaultNavigationClass = 'text-slate-400 hover:bg-slate-800 hover:text-white';
 
 const navigation = computed(() => [
-  { 
-    name: 'Dashboard', 
-    path: '/', 
+  {
+    name: 'Dashboard',
+    path: '/',
     icon: LayoutDashboard,
     class: defaultNavigationClass,
   },
-  { 
-    name: 'Housing Directory', 
-    path: '/housing', 
+  {
+    name: 'Housing Directory',
+    path: '/housing',
     icon: Building2,
-    class: defaultNavigationClass
+    class: defaultNavigationClass,
   },
-  { 
-    name: 'Housing Application', 
-    path: '/housing/apply', 
+  {
+    name: 'Housing Application',
+    path: '/housing/apply',
     icon: ClipboardList,
-    class: defaultNavigationClass
+    class: defaultNavigationClass,
   },
   ...(authStore.isManager
     ? [
@@ -43,36 +44,47 @@ const navigation = computed(() => [
           name: 'Applications Review',
           path: '/applications/review',
           icon: ClipboardCheck,
-          class:  'bg-msu-maroon text-white font-semibold'
+          class: 'bg-msu-maroon text-white font-semibold',
         },
       ]
     : []),
-  { 
-    name: 'Billing & Utilities', 
-    path: '/billing', 
+  {
+    name: 'Billing & Utilities',
+    path: '/billing',
     icon: Receipt,
-    class: defaultNavigationClass
+    class: defaultNavigationClass,
   },
-  { 
-    name: 'Maintenance Desk', 
-    path: '/maintenance', 
+  {
+    name: 'Maintenance Desk',
+    path: '/maintenance',
     icon: Wrench,
-    class: defaultNavigationClass
+    class: defaultNavigationClass,
   },
-  { 
-    name: 'Facility Bookings', 
-    path: '/facilities', 
+  {
+    name: 'Facility Bookings',
+    path: '/facilities',
     icon: CalendarDays,
-    class: defaultNavigationClass
+    class: defaultNavigationClass,
   },
-  { 
-    name: 'Student Gig Board', 
-    path: '/gigs', 
+  {
+    name: 'Student Gig Board',
+    path: '/gigs',
     icon: Briefcase,
-    class: defaultNavigationClass
+    class: defaultNavigationClass,
   },
+  ...(authStore.isAdmin
+    ? [
+        {
+          name: 'Maintenance Reports',
+          path: '/admin/maintenance-reports',
+          icon: BarChart3,
+          class: defaultNavigationClass,
+        },
+      ]
+    : []),
 ]);
 </script>
+
 
 <template>
   <aside
@@ -104,3 +116,4 @@ const navigation = computed(() => [
     </div>
   </aside>
 </template>
+

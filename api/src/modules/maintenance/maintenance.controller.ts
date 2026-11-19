@@ -5,6 +5,7 @@ import {
   Patch,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -17,6 +18,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { User } from '../users/entities/user.entity';
+import { MaintenanceReportQueryDto } from './dto/maintenance.dto';
 
 @ApiTags('Maintenance & Utilities')
 @ApiBearerAuth()
@@ -24,6 +26,13 @@ import { User } from '../users/entities/user.entity';
 @Controller('maintenance')
 export class MaintenanceController {
   constructor(private readonly maintenanceService: MaintenanceService) {}
+
+@Get('admin/reports')
+  @Roles(Role.UNIVERSITY_ADMIN)
+  @ApiOperation({ summary: 'Get maintenance ticket reports for university admins' })
+  async getAdminMaintenanceReport(@Query() query: MaintenanceReportQueryDto) {
+    return this.maintenanceService.getAdminMaintenanceReport(query);
+  }
 
   @Get('tickets')
   @ApiOperation({ summary: 'List maintenance tickets' })
